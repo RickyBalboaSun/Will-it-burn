@@ -46,7 +46,7 @@ def forecast_body(qs):
                     hourly[f"{var}_{mname}"] = [min(100, v + 15 * k) if var == "cloud_cover_mid" else v for v in vals]
         else:
             hourly.update(base)
-        out.append({"utc_offset_seconds": OFFSET, "hourly": hourly, "daily": {"time": [], "sunset": sunsets, "sunrise": sunrises}})
+        out.append({"utc_offset_seconds": OFFSET, "elevation": 2400 if float(lat) > 37 and float(lat) < 38 else 20, "hourly": hourly, "daily": {"time": [], "sunset": sunsets, "sunrise": sunrises}})
     return out if len(out) > 1 else out[0]
 
 
@@ -119,6 +119,7 @@ def main():
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000); pg.wait_for_timeout(800)
         check(pg.inner_text("#locName") == "Near Bryce Canyon City", "reverse-geocoded place name")
         check(pg.inner_text("#score").isdigit(), "score shown")
+        check("2,400 m" in pg.inner_text("#locSub") and not pg.is_hidden("#elevWarn"), "high-altitude note: " + pg.inner_text("#elevWarn")[:80])
         days = pg.query_selector_all(".day")
         check(len(days) >= 6, f"week strip has {len(days)} days")
         check(pg.inner_text("#times").count(":") >= 3, "viewing times shown")

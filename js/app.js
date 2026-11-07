@@ -202,6 +202,7 @@ function renderPlace(place) {
   const acc = place.accuracy ? ` · ±${place.accuracy < 1000 ? Math.round(place.accuracy) + " m" : (place.accuracy / 1000).toFixed(1) + " km"}` : "";
   const parts = [place.detail, (place.gps ? "GPS " : "") + coords + acc].filter(Boolean);
   const map = `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lon}`;
+  delete $("locSub").dataset.elev;
   $("locSub").innerHTML = parts.map(esc).join("<br>") + ` · <a href="${map}" target="_blank" rel="noopener">View on map</a>`;
   const warn = place.accuracy && place.accuracy > 1000;
   $("locWarn").hidden = !warn;
@@ -248,6 +249,7 @@ function renderSelected() {
   // confidence and map
   renderConfidence();
   drawMap();
+  renderElevation();
 
   // week strip
   const best = state.events.reduce((b, x, i) => (x.score > state.events[b].score ? i : b), 0);
@@ -297,6 +299,19 @@ function renderConfidence() {
       : c.level === "Medium" ? "The models partly disagree. Check again nearer the time."
       : "The models disagree a lot. Treat this score as a rough guess and check again later."}`;
 }
+function renderElevation() {
+  const elev = state.data && state.data.locations[0].elevation;
+  const el = $("elevWarn");
+  const low = state.events[state.sel] && state.events[state.sel].inputs.low;
+  el.hidden = !(elev >= 1500);
+  if (!el.hidden) {
+    el.textContent = `You're at about ${Math.round(elev).toLocaleString()} m. Forecasts call cloud up to about 1.8 km above the ground "low". From a high viewpoint it can be level with or above you and light up, but the app treats it as blocking` +
+      (low >= 20 ? `, so this score may be too low.` : `.`);
+  }
+  const sub = $("locSub");
+  if (elev != null && !sub.dataset.elev) { sub.insertAdjacentHTML("beforeend", ` · ${Math.round(elev).toLocaleString()} m`); sub.dataset.elev = "1"; }
+}
+
 $("conf").addEventListener("click", () => { $("details").open = true; $("details").scrollIntoView({ behavior: "smooth", block: "start" }); });
 
 /* ---------- light path map ---------- */

@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v3.3
+- **Elevation** shown in the location panel, with a caveat at high viewpoints (above 1,500 m): forecasts call cloud up to about 1.8 km above the ground "low", which the model treats as blocking, but from a rim or summit it can light up. (From the Bryce sunset, which scored 9 but rated 7/10.)
+
 ## 2026-11-07 – v3.2
 - **Alerts** (Chrome on Android, with the app installed): get a notification when a sunset (or sunrise) at your chosen place is forecast to score 50, 60 or 75+. Your phone checks in the background a few times a day; no account or server. Sunset alerts arrive during the day; sunrise alerts the evening before. Once per event, never at night. "Send a test alert" checks it works.
 - On phones that can't do background checks, the app says so and points to Add to calendar.
