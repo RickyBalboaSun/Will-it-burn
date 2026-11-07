@@ -346,11 +346,12 @@ function renderElevation() {
   const low = state.events[state.sel] && state.events[state.sel].inputs.low;
   el.hidden = !(elev >= 1500);
   if (!el.hidden) {
-    el.textContent = `You're at about ${Math.round(elev).toLocaleString()} m. Forecasts call cloud up to about 1.8 km above the ground "low". From a high viewpoint it can be level with or above you and light up, but the app treats it as blocking` +
-      (low >= 20 ? `, so this score may be too low.` : `.`);
+    el.textContent = low >= 20
+      ? `High viewpoint (${Math.round(elev).toLocaleString()} m): some of the "low" cloud may be above you and light up, so this score may be too low.`
+      : `High viewpoint (${Math.round(elev).toLocaleString()} m): if low cloud forms, it may light up rather than block the view.`;
   }
   const sub = $("locSub");
-  if (elev != null && !sub.dataset.elev) { sub.insertAdjacentHTML("beforeend", ` · ${Math.round(elev).toLocaleString()} m`); sub.dataset.elev = "1"; }
+  if (elev != null && !sub.dataset.elev) { sub.insertAdjacentHTML("beforeend", ` · ${Math.round(elev).toLocaleString()}&nbsp;m`); sub.dataset.elev = "1"; }
 }
 
 $("conf").addEventListener("click", () => { $("details").open = true; $("details").scrollIntoView({ behavior: "smooth", block: "start" }); });
@@ -1007,13 +1008,22 @@ async function run(place) {
   await refresh();
 }
 
+/** Tidy reverse-geocoding output: "Swansea, Wales, United Kingdom" rather than the full official names. */
+function placeDetail(d, name) {
+  let country = d.countryName || "";
+  try { if (d.countryCode) country = new Intl.DisplayNames(["en"], { type: "region" }).of(d.countryCode) || country; } catch { /* keep the long name */ }
+  const clean = t => (t || "").replace(/\s*\[[^\]]*\]/g, "").replace(/ \(the\)$/, "").trim();
+  const parts = [d.city && d.city !== name ? d.city : null, clean(d.principalSubdivision), clean(country)].filter(Boolean);
+  return [...new Set(parts)].join(", ");
+}
+
 async function nameForGps(place) {
   try {
     const d = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${place.lat}&longitude=${place.lon}&localityLanguage=en`);
     const name = d.locality || d.city;
     if (name && state.place === place) {
       place.label = `Near ${name}`;
-      place.detail = [d.city && d.city !== name ? d.city : null, d.principalSubdivision, (d.countryName || "").replace(/ \(the\)$/, "")].filter(Boolean).join(", ");
+      place.detail = placeDetail(d, name);
       renderPlace(place);
     }
   } catch { /* coordinates only */ }

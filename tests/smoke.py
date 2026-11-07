@@ -53,7 +53,7 @@ def forecast_body(qs):
 def handle(route):
     u = urlparse(route.request.url); qs = parse_qs(u.query)
     if "bigdatacloud" in u.netloc:
-        body = {"locality": "Bryce Canyon City", "city": "Bryce Canyon City", "principalSubdivision": "Utah", "countryName": "United States of America (the)"}
+        body = {"locality": "Bryce Canyon City", "city": "Bryce Canyon City", "principalSubdivision": "Utah [US-UT]", "countryName": "United States of America (the)", "countryCode": "US"}
     elif "geocoding" in u.netloc:
         body = {"results": [{"name": "Mumbles", "latitude": 51.57, "longitude": -4.0, "admin1": "Wales", "country": "United Kingdom"}]}
     else:
@@ -118,8 +118,9 @@ def main():
         ctx, pg = new_page()
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000); pg.wait_for_timeout(800)
         check(pg.inner_text("#locName") == "Near Bryce Canyon City", "reverse-geocoded place name")
+        check(pg.inner_text("#locSub").startswith("Utah, United States\n"), "tidy region and country: " + pg.inner_text("#locSub").split("\n")[0])
         check(pg.inner_text("#score").isdigit(), "score shown")
-        check("2,400 m" in pg.inner_text("#locSub") and not pg.is_hidden("#elevWarn"), "high-altitude note: " + pg.inner_text("#elevWarn")[:80])
+        check("2,400 m" in pg.inner_text("#locSub").replace("\xa0", " ") and not pg.is_hidden("#elevWarn"), "high-altitude note: " + pg.inner_text("#elevWarn")[:80])
         days = pg.query_selector_all(".day")
         check(len(days) >= 6, f"week strip has {len(days)} days")
         check(pg.inner_text("#times").count(":") >= 3, "viewing times shown")

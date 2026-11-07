@@ -33,7 +33,7 @@ a { color: inherit; }
 .loc { background: rgba(0,0,0,0.2); border-radius: 14px; padding: 10px 16px; margin: 16px 20px 0; text-align: center; }
 .loc-name { font-size: 16px; font-weight: 600; }
 .loc-sub { font-size: 12.5px; opacity: 0.8; margin-top: 3px; line-height: 1.5; }
-.loc-warn { font-size: 13px; color: #ffd2c4; margin-top: 4px; }
+.loc-warn { font-size: 12.5px; color: #ffd9c9; margin-top: 6px; line-height: 1.45; }
 
 /* hero */
 .hero { text-align: center; padding: 26px 24px 4px; }
