@@ -1,5 +1,11 @@
 # App changelog
 
+
+## 4.3.2 – 7 Nov 2026
+- Maps work again: switched to OpenStreetMap tiles (CARTO started requiring an API key).
+- Every Log entry now has its own "Log on GitHub" button, marked once sent; clearer guidance on where rating happens.
+- Nearby scan no longer calls a poor spot "good" when every spot scores the same.
+
 ## 2026-11-07 – v4.3.1
 - Terrain check is safer at cliff-edge viewpoints: terrain cells are ~90 m across, so you're treated as at least as high as the ground 150 m towards the sun, and nothing closer than 300 m counts as a ridge. The note now says trees and buildings aren't included.
 

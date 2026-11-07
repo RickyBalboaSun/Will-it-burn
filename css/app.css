@@ -262,3 +262,5 @@ body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 
 /* Darken OpenStreetMap tiles to suit the theme */
 .dark-tiles{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.85) saturate(.6)}
+.log-actions{grid-column:1/-1;display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:6px}
+.log-actions .log-send{flex:1;text-align:center}

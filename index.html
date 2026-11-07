@@ -175,7 +175,7 @@
 
     <div class="tab" id="tab-log" data-tab="log" hidden>
       <h1 class="tab-title">Log</h1>
-      <div class="card empty" id="logEmpty">No ratings yet. After a sunset, the Tonight tab asks how it was.</div>
+      <div class="card empty" id="logEmpty">No ratings yet. After a sunset or sunrise, the Tonight tab shows "How was it?" just below the forecast: tap a number and Save. The entry then appears here with a "Log on GitHub" button. To rate an earlier one, pick its date on the Tonight tab.</div>
     <details class="card" id="logCard" open hidden>
       <summary>Your sunset log <span class="count" id="logCount"></span></summary>
       <div class="detail-body">
@@ -220,7 +220,7 @@
     </details>
       <section class="card">
         <h2>Logging</h2>
-        <div class="note" style="margin-top:0">"Log it on GitHub" opens a ready-made issue in this repository. Your logging job turns it into a data entry.</div>
+        <div class="note" style="margin-top:0">Rate a sky on the Tonight tab, then tap "Log on GitHub" on the entry in the Log tab. It opens a ready-made issue in this repository: attach your photo, tap Submit, and it becomes a data entry within a few minutes. You need to be signed in to GitHub in this browser.</div>
         <div class="row"><input class="field" id="logRepo" style="flex:1;min-height:44px;font-size:15px;padding:8px 12px" autocomplete="off" spellcheck="false" aria-label="GitHub repository for logs"><button class="btn small" id="logRepoSave" style="flex:0 0 auto">Save</button></div>
         <div class="rate-msg" id="logRepoMsg"></div>
       </section>

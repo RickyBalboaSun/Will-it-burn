@@ -527,12 +527,18 @@ $("rateSave").addEventListener("click", async () => {
   renderLog();
 });
 
-function setLogLink(x) {
+function logUrl(x) {
   const word = x.kind === "sunset" ? "Sunset" : "Sunrise";
   const title = `${word} ${x.date} – ${x.place.name} – ${x.rating}/10`;
   const body = M.logIssueBody(x, clock(x.t, x.offset));
-  $("rateLog").href = `https://github.com/${logRepo()}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+  return `https://github.com/${logRepo()}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
+function setLogLink(x) { $("rateLog").href = logUrl(x); $("rateLog").dataset.id = x.id; }
+function markSent(id) {
+  store.set("wib-log", logAll().map(x => x.id === id ? { ...x, sentAt: Date.now() } : x));
+  renderLog();
+}
+$("rateLog").addEventListener("click", () => setTimeout(() => markSent($("rateLog").dataset.id), 0));
 
 function entryText(x) {
   const word = x.kind === "sunset" ? "Sunset" : "Sunrise";
@@ -571,10 +577,15 @@ function renderLog() {
     <div class="log-item">
       <div>${esc(x.place.name)}${x.onLocation ? '<span class="badge-ok">✓ on location</span>' : ""}<div class="lp">${x.kind === "sunset" ? "Sunset" : "Sunrise"} · ${esc(isoDay(x.t, x.offset))}${x.notes ? " · " + esc(x.notes.slice(0, 60)) : ""}</div></div>
       <div class="lr">You ${x.rating}/10<div class="lp">App ${x.predicted}</div></div>
-      <button class="del" data-id="${esc(x.id)}">Delete</button>
+      <div class="log-actions">
+        <a class="btn small ${x.sentAt ? "ghost" : "linkbtn-solid"} log-send" data-id="${esc(x.id)}" href="${esc(logUrl(x))}" target="_blank" rel="noopener">${x.sentAt ? "Logged ✓ · log again" : "Log on GitHub"}</a>
+        <button class="del" data-id="${esc(x.id)}">Delete</button>
+      </div>
     </div>`).join("");
 }
 $("logList").addEventListener("click", ev => {
+  const send = ev.target.closest(".log-send");
+  if (send) { const id = send.dataset.id; setTimeout(() => markSent(id), 0); return; }
   const b = ev.target.closest(".del"); if (!b) return;
   store.set("wib-log", logAll().filter(x => x.id !== b.dataset.id));
   renderLog(); if (state.data) renderRate();
