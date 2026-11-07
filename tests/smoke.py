@@ -23,7 +23,8 @@ def forecast_body(qs):
     start = LOCAL_MIDNIGHT
     if "start_date" in qs:  # past date: use that day
         y, m, d = map(int, qs["start_date"][0].split("-"))
-        start = int(time.mktime((y, m, d, 0, 0, 0, 0, 0, 0))) - time.timezone - OFFSET
+        import calendar
+        start = calendar.timegm((y, m, d, 0, 0, 0)) - OFFSET
         days = 2
     hours = days * 24
     times = [start + h * 3600 for h in range(hours)]
@@ -194,6 +195,24 @@ def main():
         check(pg.inner_text("#rateSave") == "Update rating" and "on" in (pg.get_attribute("#scale button[data-n='7']", "class") or ""), "rating remembered after reload")
         pg.click("#logCard summary"); pg.click(".log-item .del"); pg.wait_for_timeout(100)
         check(pg.is_hidden("#logCard"), "deleting the only entry hides the log")
+        ctx.close()
+
+        print("Past date")
+        ctx, pg = new_page()
+        pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
+        pg.click("#pastCard summary"); pg.fill("#pastDate", "2026-10-20"); pg.click("#pastGo")
+        pg.wait_for_selector("#pastBar:not([hidden])", timeout=10000); pg.wait_for_timeout(300)
+        check("20 Oct" in pg.inner_text("#when"), "hero shows the past date: " + pg.inner_text("#when"))
+        check(pg.is_hidden("#weekCard") and pg.is_hidden("#nearCard"), "forecast-only cards hidden")
+        check(not pg.is_hidden("#rateCard") and "20 oct" in pg.inner_text("#rateTitle").lower(), "can rate the past date: " + pg.inner_text("#rateTitle"))
+        pg.click("#scale button[data-n='6']"); pg.click("#rateSave")
+        check("(1)" in pg.inner_text("#logCount"), "past rating logged")
+        shot(pg, "08-past")
+        pg.click("#pastBack"); pg.wait_for_timeout(200)
+        check(not pg.is_hidden("#weekCard") and pg.is_hidden("#pastBar"), "back to the forecast")
+        pg.click("#pastCard summary") if not pg.eval_on_selector("#pastCard", "e => e.open") else None
+        pg.fill("#pastDate", "2099-01-01"); pg.click("#pastGo")
+        check("earlier" in pg.inner_text("#pastStatus"), "future date rejected")
         ctx.close()
 
         print("Search flow (GPS denied)")

@@ -15,11 +15,11 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 8 | Light path map | See exactly which sky is being judged |
 | 9 | Saved spots | Compare your regular places at a glance |
 | 10 | Find a better spot nearby | The best sunset within a short drive |
+| 11 | Check a past date (and rate it) | Back-fill the log from old photos |
 
 ## Next (in order)
 | # | Feature | Why | Notes |
 |---|---|---|---|
-| 11 | Check a past date | Verify the model against your old photos | Open-Meteo past/historical forecasts |
 | 12 | Share card | Tell friends "tonight's a 78" | Web Share API, image drawn on canvas |
 
 ## Later / needs more than a static site

@@ -146,3 +146,7 @@ details[open] summary::after { content: "Hide"; }
 .near-item small { opacity: 0.7; }
 .leaflet-tooltip.near-tip { background: transparent; border: 0; box-shadow: none; color: #1a1424; font-weight: 700; font-size: 12px; padding: 0; }
 .leaflet-tooltip.near-tip::before { display: none; }
+
+/* past date */
+.past-bar { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; font-size: 14px; background: rgba(0,0,0,0.3); border-radius: 14px; padding: 8px 12px; }
+.past-bar .btn { flex: 0 0 auto; }

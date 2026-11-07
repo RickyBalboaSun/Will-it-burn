@@ -56,6 +56,7 @@ const state = {
   events: [],        // scored upcoming events
   sel: 0,
   models: null,      // multi-model forecast for confidence
+  past: false,       // looking back at a past date
 };
 
 /* ---------- data ---------- */
@@ -315,7 +316,7 @@ function recentEvent(d) {
 
 let rateSel = null, rateEvent = null;
 function renderRate() {
-  const d = state.data, e = recentEvent(d);
+  const d = state.data, e = state.past ? state.events[0] : recentEvent(d);
   rateEvent = e;
   $("rateCard").hidden = !e;
   if (!e) return;
@@ -323,8 +324,9 @@ function renderRate() {
   const id = entryId(d.kind, e.t, off, state.place);
   const existing = logAll().find(x => x.id === id);
   rateSel = existing ? existing.rating : null;
-  $("rateTitle").textContent = `How was ${dayName(e.t, off, d.kind).toLowerCase() === "tonight" ? "tonight's" : dayName(e.t, off, d.kind) + "'s"} ${word}?`;
-  $("rateSub").textContent = `The app predicted ${e.score}/100 for the ${word} at ${clock(e.t, off)}. Your rating helps tune the model.`;
+  const dn = dayName(e.t, off, d.kind);
+  $("rateTitle").textContent = dn === "Tonight" || dn === "Today" ? `How was ${dn.toLowerCase()}'s ${word}?` : `How was the ${word} on ${dn}?`;
+  $("rateSub").textContent = `The app ${state.past ? "would have predicted" : "predicted"} ${e.score}/100 for the ${word} at ${clock(e.t, off)}. Your rating helps tune the model.`;
   $("rateNotes").value = existing ? existing.notes : "";
   $("rateCopy").hidden = !existing;
   $("rateSave").textContent = existing ? "Update rating" : "Save rating";
@@ -529,6 +531,73 @@ async function drawNearMap(scored, p) {
   setTimeout(() => nearMap.invalidateSize(), 50);
 }
 
+
+/* ---------- past dates ---------- */
+async function loadPast(place, kind, dateStr) {
+  const day = new Date(dateStr + "T12:00:00Z").getTime() / 1000;
+  const az = M.eventAzimuth(place.lat, M.dayOfYear(day), kind);
+  const pts = M.ALL_KM.map(km => M.destination(place.lat, place.lon, az, km));
+  const next = new Date(day * 1000 + 86400000).toISOString().slice(0, 10);
+  const recent = (Date.now() / 1000 - day) / 86400 <= 85;
+  const params = new URLSearchParams({
+    latitude: pts.map(p => p[0].toFixed(4)).join(","), longitude: pts.map(p => p[1].toFixed(4)).join(","),
+    hourly: M.VARS.join(","), daily: "sunset,sunrise", timezone: "auto", timeformat: "unixtime",
+    start_date: dateStr, end_date: next,
+  });
+  const base = recent ? "https://api.open-meteo.com/v1/forecast?" : "https://historical-forecast-api.open-meteo.com/v1/forecast?";
+  let data;
+  try { data = await getJSON(base + params, 20000); }
+  catch (err) {
+    // the archive may not support every variable: retry with the core set
+    params.set("hourly", ["cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high", "relative_humidity_2m", "precipitation"].join(","));
+    data = await getJSON(base + params, 20000);
+  }
+  if (!Array.isArray(data)) data = [data];
+  const d = { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind };
+  const t = (data[0].daily[kind] || [])[0];
+  if (t == null) throw new Error("no-event");
+  const S = M.samplesAt(data, t);
+  if (!M.hasData(S)) throw new Error("no-data");
+  return { d, e: { t, ...M.scoreSamples(S) } };
+}
+
+(() => {
+  const today = new Date(), min = "2022-01-01";
+  const iso = x => x.toISOString().slice(0, 10);
+  $("pastDate").max = iso(today); $("pastDate").min = min;
+  $("pastDate").value = iso(new Date(today.getTime() - 86400000));
+})();
+$("pastGo").addEventListener("click", async () => {
+  const v = $("pastDate").value;
+  if (!v) { $("pastStatus").textContent = "Pick a date first."; return; }
+  if (v > new Date().toISOString().slice(0, 10)) { $("pastStatus").textContent = "Pick today or an earlier date."; return; }
+  if (v < "2022-01-01") { $("pastStatus").textContent = "The archive goes back to 2022."; return; }
+  $("pastGo").disabled = true; $("pastStatus").textContent = "Looking up the archived forecast…";
+  try {
+    const { d, e } = await loadPast(state.place, state.kind, v);
+    state.live = state.live || { data: state.data, events: state.events, models: state.models, sel: state.sel };
+    state.past = true; state.data = d; state.events = [e]; state.sel = 0; state.models = null;
+    $("pastStatus").textContent = ""; $("pastCard").open = false;
+    applyPastUi(); renderSelected(); renderRate();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (err) {
+    $("pastStatus").textContent = err.message === "no-event" ? `There was no ${state.kind} here that day.`
+      : "Couldn't get archived data for that date. Try another date.";
+  } finally { $("pastGo").disabled = false; }
+});
+function applyPastUi() {
+  $("pastBar").hidden = !state.past;
+  $("weekCard").hidden = state.past;
+  $("nearCard").hidden = state.past;
+  $("countdown").hidden = state.past;
+}
+function leavePast() {
+  if (!state.past) return;
+  Object.assign(state, state.live, { past: false, live: null });
+  applyPastUi(); renderSelected(); renderRate();
+}
+$("pastBack").addEventListener("click", leavePast);
+
 /* ---------- flow ---------- */
 async function refresh() {
   const place = state.place;
@@ -548,7 +617,7 @@ async function refresh() {
     const events = scoreEvents(d);
     if (!events.length) throw new Error("no-event");
     state.data = d; state.events = events; state.sel = 0;
-    state.models = null;
+    state.models = null; state.past = false; state.live = null; applyPastUi();
     renderPlace(place); renderSaveButton(); renderSelected(); renderRate(); renderLog(); show("result");
     $("nearList").innerHTML = ""; $("nearStatus").textContent = ""; $("nearMap").hidden = true;
     if (!offlineAt) loadModels(d).then(m => {

@@ -69,6 +69,10 @@
       <div class="countdown" id="countdown"></div>
       <div class="offline" id="offline" hidden></div>
       <button class="conf" id="conf" hidden></button>
+      <div class="past-bar" id="pastBar" hidden>
+        <span>Looking back at a past date</span>
+        <button class="btn small" id="pastBack">Back to the forecast</button>
+      </div>
       <ul class="reasons" id="reasons"></ul>
     </section>
 
@@ -85,7 +89,7 @@
       <div class="rate-msg" id="rateMsg"></div>
     </section>
 
-    <section class="card">
+    <section class="card" id="weekCard">
       <h2 id="weekTitle">The week ahead</h2>
       <div class="week" id="week"></div>
     </section>
@@ -95,6 +99,18 @@
       <div class="times" id="times"></div>
       <div class="note" id="timesNote"></div>
     </section>
+
+    <details class="card" id="pastCard">
+      <summary>Check a past date</summary>
+      <div class="detail-body">
+        <div class="note" style="margin-top:0">See what the app would have predicted for an earlier sunset or sunrise here. Then rate it, to add your old photos to the log.</div>
+        <div class="row">
+          <input class="field" type="date" id="pastDate" style="flex:1;min-height:44px;font-size:16px;padding:8px 12px">
+          <button class="btn small" id="pastGo" style="flex:0 0 auto">Check</button>
+        </div>
+        <div class="near-status" id="pastStatus"></div>
+      </div>
+    </details>
 
     <details class="card" id="nearCard">
       <summary>Find a better spot nearby</summary>
