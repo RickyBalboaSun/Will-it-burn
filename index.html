@@ -29,6 +29,11 @@
 
   .hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px 24px 8px; }
   .when { font-size: 15px; opacity: 0.85; letter-spacing: 0.02em; }
+  .loc { background: rgba(0,0,0,0.2); border-radius: 14px; padding: 10px 16px; margin-bottom: 18px; max-width: 360px; }
+  .loc-name { font-size: 17px; font-weight: 600; }
+  .loc-sub { font-size: 13px; opacity: 0.8; margin-top: 3px; line-height: 1.5; }
+  .loc-sub a { color: #fff; }
+  .loc-warn { font-size: 13px; color: #ffd2c4; margin-top: 4px; }
   .score { font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 132px; line-height: 1; letter-spacing: -4px; margin: 10px 0 0; text-shadow: 0 4px 30px rgba(0,0,0,0.25); }
   .score small { font-size: 30px; font-weight: 500; letter-spacing: 0; opacity: 0.7; }
   .verdict { font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: 28px; margin-top: 8px; }
@@ -88,6 +93,11 @@
   </div>
 
   <div id="result" hidden>
+    <div class="loc" id="loc">
+      <div class="loc-name" id="locName"></div>
+      <div class="loc-sub" id="locSub"></div>
+      <div class="loc-warn" id="locWarn" hidden></div>
+    </div>
     <div class="when" id="when"></div>
     <div class="score"><span id="score"></span><small>/100</small></div>
     <div class="verdict" id="verdict"></div>
@@ -290,9 +300,37 @@ let current = null;
 function save(p) { try { localStorage.setItem("wib-place", JSON.stringify(p)); } catch (e) {} }
 function load() { try { return JSON.parse(localStorage.getItem("wib-place")); } catch (e) { return null; } }
 
+function renderPlace(place) {
+  $("placeBtn").textContent = "Change place";
+  $("placeBtn").hidden = false;
+  $("locName").textContent = place.label || place.name;
+  const coords = `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`;
+  const acc = place.accuracy ? ` · ±${place.accuracy < 1000 ? Math.round(place.accuracy) + " m" : (place.accuracy / 1000).toFixed(1) + " km"}` : "";
+  const parts = [place.detail, (place.gps ? "GPS " : "") + coords + acc].filter(Boolean);
+  const map = `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lon}`;
+  $("locSub").innerHTML = parts.map(esc).join("<br>") + ` · <a href="${map}" target="_blank" rel="noopener">View on map</a>`;
+  const warn = place.accuracy && place.accuracy > 1000;
+  $("locWarn").hidden = !warn;
+  if (warn) $("locWarn").textContent = "Your location is only approximate. Turn on precise location, or search for the place.";
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function nameForGps(place) {
+  try {
+    const d = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${place.lat}&longitude=${place.lon}&localityLanguage=en`);
+    const name = d.locality || d.city;
+    if (name && current === place) {
+      place.label = `Near ${name}`;
+      place.detail = [d.city && d.city !== name ? d.city : null, d.principalSubdivision, (d.countryName || "").replace(/ \(the\)$/, "")].filter(Boolean).join(", ");
+      renderPlace(place);
+    }
+  } catch (e) { /* keep coordinates only */ }
+}
+
 async function run(place) {
   current = place; save(place);
-  $("placeBtn").textContent = place.name; $("placeBtn").hidden = false;
+  renderPlace(place);
+  if (place.gps) nameForGps(place);
   loading("Checking the sky…");
   try {
     renderResult(await predict(place.lat, place.lon));
@@ -313,9 +351,9 @@ function locate() {
   if (!navigator.geolocation) { openPicker("Location isn't available. Search for a place instead."); return; }
   loading("Finding your location…");
   navigator.geolocation.getCurrentPosition(
-    p => run({ name: "My location", lat: p.coords.latitude, lon: p.coords.longitude, gps: true }),
+    p => run({ name: "My location", label: "My location", lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy, gps: true }),
     () => openPicker("Couldn't get your location. Search for a place instead."),
-    { timeout: 10000, maximumAge: 300000 }
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 120000 }
   );
 }
 
@@ -333,7 +371,7 @@ $("searchForm").addEventListener("submit", async e => {
       const b = document.createElement("button"); b.type = "button";
       const sub = [p.admin1, p.country].filter(Boolean).join(", ");
       b.innerHTML = `${p.name}<br><small>${sub}</small>`;
-      b.addEventListener("click", () => run({ name: p.name, lat: p.latitude, lon: p.longitude }));
+      b.addEventListener("click", () => run({ name: p.name, label: p.name, detail: sub, lat: p.latitude, lon: p.longitude }));
       $("results").appendChild(b);
     }
   } catch (err) {
