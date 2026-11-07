@@ -70,6 +70,8 @@ def serve():
     return httpd
 
 
+import base64
+TILE = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk2PS/HgAFJQJVOyJ0rAAAAABJRU5ErkJggg==")
 FAILS = []
 def check(cond, msg):
     print(("  ok   " if cond else "  FAIL ") + msg)
@@ -89,6 +91,10 @@ def main():
             ctx.route("**/*open-meteo.com/**", handle); ctx.route("**/*bigdatacloud.net/**", handle)
             ctx.route("**/fonts.googleapis.com/**", lambda r: r.fulfill(status=200, body="", content_type="text/css"))
             ctx.route("**/fonts.gstatic.com/**", lambda r: r.abort())
+            ctx.route("**/cdnjs.cloudflare.com/ajax/libs/leaflet/**", lambda r: r.fulfill(status=200,
+                path="/tmp/leaflet/package/dist/leaflet.css" if r.request.url.endswith(".css") else "/tmp/leaflet/package/dist/leaflet.js",
+                content_type="text/css" if r.request.url.endswith(".css") else "application/javascript"))
+            ctx.route("**/*basemaps.cartocdn.com/**", lambda r: r.fulfill(status=200, body=TILE, content_type="image/png"))
             pg = ctx.new_page()
             pg.on("pageerror", lambda e: errors.append(str(e)))
             pg.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and errors.append(m.text))
@@ -110,6 +116,11 @@ def main():
         check("confidence" in pg.inner_text("#conf"), "confidence pill: " + pg.inner_text("#conf"))
         pg.click("#conf"); pg.wait_for_timeout(300)
         check("European" in pg.inner_text("#confDetail") and "German" in pg.inner_text("#confDetail"), "per-model scores in details")
+        pg.click("#mapCard summary"); pg.wait_for_selector(".leaflet-interactive", timeout=8000); pg.wait_for_timeout(400)
+        check(len(pg.query_selector_all("path.leaflet-interactive")) >= 6, "map shows the light path and 5 sample points")
+        pg.query_selector_all("path.leaflet-interactive")[-1].click(force=True); pg.wait_for_timeout(200)
+        check("Low" in (pg.inner_text(".leaflet-popup-content") if pg.query_selector(".leaflet-popup-content") else ""), "tapping a point shows its cloud cover")
+        pg.eval_on_selector("#mapCard", "e => e.scrollIntoView()"); shot(pg, "05-map")
         shot(pg, "01-home"); shot(pg, "01-home-full", True)
         first = pg.inner_text("#score")
         days[2].click(); pg.wait_for_timeout(200)

@@ -12,11 +12,11 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 5 | Installable app + offline | Feels like a real app; works at remote viewpoints |
 | 6 | Rate a sunset, log, copy for Claude | Feeds the data loop that improves the model |
 | 7 | Forecast confidence from three weather models | Honest about uncertainty |
+| 8 | Light path map | See exactly which sky is being judged |
 
 ## Next (in order)
 | # | Feature | Why | Notes |
 |---|---|---|---|
-| 8 | Light-path map | See exactly which sky is being judged | Leaflet + OpenStreetMap tiles |
 | 9 | Saved spots | Compare your regular places at a glance | Stored on the phone |
 | 10 | Where to go tonight | Scores a ring of nearby spots to find the best sunset within reach | Batches points into one request |
 | 11 | Check a past date | Verify the model against your old photos | Open-Meteo past/historical forecasts |

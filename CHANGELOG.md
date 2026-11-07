@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v2.4
+- **Light path map**: a map of exactly which sky is being judged. Your spot, the line towards the sun, and the five sample points coloured clear, some cloud or cloudy. Tap a point for its low, mid and high cloud. It only loads when opened, to save data.
+
 ## 2026-11-07 – v2.3
 - **Forecast confidence**: the same sky is scored with three independent weather models (European ECMWF, American GFS, German ICON). If they agree, confidence is High; if they disagree, the app says to treat the score as a rough guess. Tap the pill for each model's score.
 

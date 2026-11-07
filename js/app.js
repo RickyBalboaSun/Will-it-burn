@@ -169,8 +169,9 @@ function renderSelected() {
   };
   clearInterval(countdownTimer); tick(); countdownTimer = setInterval(tick, 30000);
 
-  // confidence
+  // confidence and map
   renderConfidence();
+  drawMap();
 
   // week strip
   const best = state.events.reduce((b, x, i) => (x.score > state.events[b].score ? i : b), 0);
@@ -221,6 +222,55 @@ function renderConfidence() {
       : "The models disagree a lot. Treat this score as a rough guess and check again later."}`;
 }
 $("conf").addEventListener("click", () => { $("details").open = true; $("details").scrollIntoView({ behavior: "smooth", block: "start" }); });
+
+/* ---------- light path map ---------- */
+let leafletReady = null, map = null, mapLayer = null;
+function loadLeaflet() {
+  if (leafletReady) return leafletReady;
+  leafletReady = new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+    document.head.appendChild(css);
+    const js = document.createElement("script");
+    js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    js.onload = () => resolve(window.L); js.onerror = () => { leafletReady = null; reject(new Error("leaflet")); };
+    document.head.appendChild(js);
+  });
+  return leafletReady;
+}
+const cloudColour = block => block < 20 ? "#7ee08a" : block < 55 ? "#ffd166" : "#9a9aa8";
+
+async function drawMap() {
+  if (!$("mapCard").open || !state.data) return;
+  let L;
+  try { L = await loadLeaflet(); } catch { $("mapNote").textContent = "The map couldn't load. Check your connection."; return; }
+  const d = state.data, e = state.events[state.sel], p = state.place;
+  if (!map) {
+    map = L.map("map", { zoomControl: false, attributionControl: true });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 18, subdomains: "abcd",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    }).addTo(map);
+  }
+  if (mapLayer) mapLayer.remove();
+  mapLayer = L.layerGroup().addTo(map);
+  const end = M.destination(p.lat, p.lon, d.az, 300);
+  L.polyline([[p.lat, p.lon], end], { color: "#ffb36b", weight: 3, opacity: 0.8, dashArray: "6 6" }).addTo(mapLayer);
+  M.ALL_KM.forEach((km, i) => {
+    const [la, lo] = d.pts[i];
+    const low = M.valueAt(d.locations[i], "cloud_cover_low", e.t), mid = M.valueAt(d.locations[i], "cloud_cover_mid", e.t), high = M.valueAt(d.locations[i], "cloud_cover_high", e.t);
+    const isPath = M.PATH_KM.includes(km);
+    const block = isPath ? Math.min(100, (low || 0) + 0.5 * (mid || 0)) : (low || 0);
+    const r = (n) => n == null ? "–" : Math.round(n);
+    L.circleMarker([la, lo], { radius: km === 0 ? 9 : 7, color: "#fff", weight: 2, fillColor: km === 0 ? "#fff" : cloudColour(block), fillOpacity: 1 })
+      .bindPopup(`<b>${km === 0 ? "You" : km + " km " + M.compass(d.az)}</b><br>${isPath ? "Light path: must be clear" : "Canvas: cloud here lights up"}<br>Low ${r(low)}% · mid ${r(mid)}% · high ${r(high)}%`)
+      .addTo(mapLayer);
+  });
+  map.fitBounds(L.latLngBounds([[p.lat, p.lon], end]).pad(0.15));
+  setTimeout(() => map.invalidateSize(), 50);
+  $("mapNote").textContent = `The dashed line points ${M.compass(d.az)} towards the ${d.kind}. Clouds near you are the canvas; the points 75–250 km away need to be clear for the light to reach it. Tap a point for its cloud cover.`;
+}
+$("mapCard").addEventListener("toggle", drawMap);
 
 $("week").addEventListener("click", e => {
   const b = e.target.closest(".day");
