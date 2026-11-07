@@ -196,6 +196,121 @@ for (const [id, kind] of [["kindSunset", "sunset"], ["kindSunrise", "sunrise"]])
   });
 }
 
+
+/* ---------- rating and log ---------- */
+const RUBRIC = n => n == null ? "Tap a number. Rate what you saw, not the photo."
+  : n <= 2 ? "Grey or no visible colour"
+  : n <= 4 ? "A coloured band on the horizon only"
+  : n <= 6 ? "Some clouds lit up, colour in part of the sky"
+  : n <= 8 ? "Strong colour across much of the sky"
+  : "Exceptional: the whole sky lit up";
+const logAll = () => store.get("wib-log", []);
+const isoDay = (unix, off) => { const d = localDate(unix, off); return d.toISOString().slice(0, 10); };
+const entryId = (kind, t, off, place) => `${kind}-${isoDay(t, off)}-${place.lat.toFixed(3)},${place.lon.toFixed(3)}`;
+
+/** The sunset/sunrise that has just happened (within the last 16 hours), scored. */
+function recentEvent(d) {
+  const now = Date.now() / 1000;
+  const times = (d.locations[0].daily[d.kind] || []).filter(t => t != null && t <= now + 10 * 60 && t >= now - 16 * 3600);
+  if (!times.length) return null;
+  const t = Math.max(...times);
+  const S = M.samplesAt(d.locations, t);
+  return M.hasData(S) ? { t, ...M.scoreSamples(S) } : null;
+}
+
+let rateSel = null, rateEvent = null;
+function renderRate() {
+  const d = state.data, e = recentEvent(d);
+  rateEvent = e;
+  $("rateCard").hidden = !e;
+  if (!e) return;
+  const off = d.offset, word = d.kind;
+  const id = entryId(d.kind, e.t, off, state.place);
+  const existing = logAll().find(x => x.id === id);
+  rateSel = existing ? existing.rating : null;
+  $("rateTitle").textContent = `How was ${dayName(e.t, off, d.kind).toLowerCase() === "tonight" ? "tonight's" : dayName(e.t, off, d.kind) + "'s"} ${word}?`;
+  $("rateSub").textContent = `The app predicted ${e.score}/100 for the ${word} at ${clock(e.t, off)}. Your rating helps tune the model.`;
+  $("rateNotes").value = existing ? existing.notes : "";
+  $("rateCopy").hidden = !existing;
+  $("rateSave").textContent = existing ? "Update rating" : "Save rating";
+  $("rateMsg").textContent = existing ? "Saved on this phone." : "";
+  drawScale();
+}
+function drawScale() {
+  $("scale").innerHTML = Array.from({ length: 11 }, (_, n) =>
+    `<button role="radio" aria-checked="${rateSel === n}" class="${rateSel === n ? "on" : ""}" data-n="${n}">${n}</button>`).join("");
+  $("rubric").textContent = RUBRIC(rateSel);
+}
+$("scale").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  rateSel = Number(b.dataset.n); drawScale();
+});
+$("rateSave").addEventListener("click", () => {
+  if (rateSel == null) { $("rateMsg").textContent = "Tap a number from 0 to 10 first."; return; }
+  const d = state.data, e = rateEvent, p = state.place;
+  const entry = {
+    id: entryId(d.kind, e.t, d.offset, p), kind: d.kind, t: e.t, offset: d.offset,
+    place: { name: p.label || p.name, detail: p.detail || "", lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) },
+    facing: Math.round(d.az), predicted: e.score, model: M.MODEL_VERSION,
+    inputs: Object.fromEntries(Object.entries(e.inputs).map(([k, v]) => [k, v == null ? null : Math.round(v)])),
+    rating: rateSel, notes: $("rateNotes").value.trim(), savedAt: Date.now(),
+  };
+  const log = logAll().filter(x => x.id !== entry.id);
+  log.push(entry); log.sort((a, b) => b.t - a.t);
+  store.set("wib-log", log);
+  $("rateMsg").textContent = "Saved on this phone. Tap Copy for Claude, then paste it to Claude with your photo.";
+  $("rateCopy").hidden = false; $("rateSave").textContent = "Update rating";
+  renderLog();
+});
+
+function entryText(x) {
+  const word = x.kind === "sunset" ? "Sunset" : "Sunrise";
+  const lines = [
+    `${word} ${isoDay(x.t, x.offset)} at ${clock(x.t, x.offset)}`,
+    `Place: ${x.place.name}${x.place.detail ? ", " + x.place.detail : ""} (${x.place.lat}, ${x.place.lon})`,
+    `Facing: ${M.compass(x.facing)} (${x.facing}°)`,
+    `App score: ${x.predicted}/100 (model ${x.model})`,
+    `My rating: ${x.rating}/10`,
+  ];
+  if (x.notes) lines.push(`Notes: ${x.notes}`);
+  return lines.join("\n");
+}
+async function copyText(text, msgEl) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+    ta.select(); let ok = false; try { ok = document.execCommand("copy"); } catch { /* ignore */ }
+    ta.remove();
+    if (!ok) { msgEl.textContent = "Couldn't copy automatically on this phone."; return; }
+  }
+  msgEl.textContent = "Copied. Paste it into Claude with your photo.";
+}
+$("rateCopy").addEventListener("click", () => {
+  const e = logAll().find(x => x.id === entryId(state.data.kind, rateEvent.t, state.data.offset, state.place));
+  if (e) copyText("Will It Burn log entry\n" + entryText(e), $("rateMsg"));
+});
+
+function renderLog() {
+  const log = logAll();
+  $("logCard").hidden = !log.length;
+  $("logCount").textContent = log.length ? `(${log.length})` : "";
+  $("logList").innerHTML = log.map(x => `
+    <div class="log-item">
+      <div>${esc(x.place.name)}<div class="lp">${x.kind === "sunset" ? "Sunset" : "Sunrise"} · ${esc(isoDay(x.t, x.offset))}${x.notes ? " · " + esc(x.notes.slice(0, 60)) : ""}</div></div>
+      <div class="lr">You ${x.rating}/10<div class="lp">App ${x.predicted}</div></div>
+      <button class="del" data-id="${esc(x.id)}">Delete</button>
+    </div>`).join("");
+}
+$("logList").addEventListener("click", ev => {
+  const b = ev.target.closest(".del"); if (!b) return;
+  store.set("wib-log", logAll().filter(x => x.id !== b.dataset.id));
+  renderLog(); if (state.data) renderRate();
+});
+$("logCopyAll").addEventListener("click", () => {
+  const log = logAll();
+  copyText(`Will It Burn log: ${log.length} entr${log.length === 1 ? "y" : "ies"}\n\n` + log.map(entryText).join("\n\n"), $("logMsg"));
+});
+
 /* ---------- flow ---------- */
 async function refresh() {
   const place = state.place;
@@ -215,7 +330,7 @@ async function refresh() {
     const events = scoreEvents(d);
     if (!events.length) throw new Error("no-event");
     state.data = d; state.events = events; state.sel = 0;
-    renderPlace(place); renderSelected(); show("result");
+    renderPlace(place); renderSelected(); renderRate(); renderLog(); show("result");
     $("offline").hidden = !offlineAt;
     if (offlineAt) {
       const t = new Date(offlineAt);

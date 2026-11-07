@@ -66,6 +66,19 @@
       <ul class="reasons" id="reasons"></ul>
     </section>
 
+    <section class="card rate" id="rateCard" hidden>
+      <h2 id="rateTitle">How was it?</h2>
+      <div class="rate-sub" id="rateSub"></div>
+      <div class="scale" id="scale" role="radiogroup" aria-label="Your rating out of 10"></div>
+      <div class="rubric" id="rubric">Tap a number. Rate what you saw, not the photo.</div>
+      <textarea class="field notes" id="rateNotes" rows="2" placeholder="Where was the colour? When did it peak?"></textarea>
+      <div class="row">
+        <button class="btn small" id="rateSave">Save rating</button>
+        <button class="btn small ghost" id="rateCopy" hidden>Copy for Claude</button>
+      </div>
+      <div class="rate-msg" id="rateMsg"></div>
+    </section>
+
     <section class="card">
       <h2 id="weekTitle">The week ahead</h2>
       <div class="week" id="week"></div>
@@ -76,6 +89,15 @@
       <div class="times" id="times"></div>
       <div class="note" id="timesNote"></div>
     </section>
+
+    <details class="card" id="logCard" hidden>
+      <summary>Your sunset log <span class="count" id="logCount"></span></summary>
+      <div class="detail-body">
+        <div id="logList"></div>
+        <button class="btn small ghost" id="logCopyAll">Copy all for Claude</button>
+        <div class="rate-msg" id="logMsg"></div>
+      </div>
+    </details>
 
     <details class="card" id="details">
       <summary>Why this score</summary>

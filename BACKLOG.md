@@ -10,11 +10,11 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 3 | Sunrise mode | Same physics facing east; doubles the usefulness |
 | 4 | When to watch: golden hour, best-colour window, afterglow | The best colour is often *after* sunset; people leave too early |
 | 5 | Installable app + offline | Feels like a real app; works at remote viewpoints |
+| 6 | Rate a sunset, log, copy for Claude | Feeds the data loop that improves the model |
 
 ## Next (in order)
 | # | Feature | Why | Notes |
 |---|---|---|---|
-| 6 | Rate a sunset + log + "copy for Claude" | Feeds the data loop that improves the model | Stored on the phone; copy text matches the data repo format |
 | 7 | Forecast confidence (ECMWF vs GFS vs ICON) | Honest about uncertainty; cloud forecasts are often wrong | Open-Meteo multi-model, no key |
 | 8 | Light-path map | See exactly which sky is being judged | Leaflet + OpenStreetMap tiles |
 | 9 | Saved spots | Compare your regular places at a glance | Stored on the phone |
