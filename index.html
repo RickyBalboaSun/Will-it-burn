@@ -63,6 +63,7 @@
       <div class="verdict" id="verdict"></div>
       <div class="countdown" id="countdown"></div>
       <div class="offline" id="offline" hidden></div>
+      <button class="conf" id="conf" hidden></button>
       <ul class="reasons" id="reasons"></ul>
     </section>
 
@@ -101,7 +102,10 @@
 
     <details class="card" id="details">
       <summary>Why this score</summary>
-      <div class="detail-body" id="detailBody"></div>
+      <div class="detail-body">
+        <div class="conf-detail" id="confDetail" hidden></div>
+        <div id="detailBody" style="display:grid;gap:10px"></div>
+      </div>
     </details>
   </main>
 

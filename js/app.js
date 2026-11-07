@@ -55,6 +55,7 @@ const state = {
   data: null,        // { locations, az, offset, kind }
   events: [],        // scored upcoming events
   sel: 0,
+  models: null,      // multi-model forecast for confidence
 };
 
 /* ---------- data ---------- */
@@ -71,6 +72,29 @@ async function loadForecast(place, kind) {
   let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params);
   if (!Array.isArray(data)) data = [data];
   return { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind };
+}
+
+/** Same points, three independent weather models, to judge forecast confidence. */
+async function loadModels(d) {
+  const params = new URLSearchParams({
+    latitude: d.pts.map(p => p[0].toFixed(4)).join(","),
+    longitude: d.pts.map(p => p[1].toFixed(4)).join(","),
+    hourly: M.VARS.join(","), models: M.CONFIDENCE_MODELS.join(","),
+    timezone: "auto", timeformat: "unixtime", forecast_days: "8",
+  });
+  let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params, 15000);
+  return Array.isArray(data) ? data : [data];
+}
+const MODEL_NAMES = { ecmwf_ifs025: "European (ECMWF)", gfs_seamless: "American (GFS)", icon_seamless: "German (ICON)" };
+
+/** Score an event time with each weather model. Returns [{model, score}] for models with data. */
+function modelScores(locs, t) {
+  const out = [];
+  for (const m of M.CONFIDENCE_MODELS) {
+    const S = M.samplesAt(locs, t, "_" + m);
+    if (M.hasData(S)) out.push({ model: m, score: M.scoreSamples(S).score });
+  }
+  return out;
 }
 
 function scoreEvents(d) {
@@ -145,6 +169,9 @@ function renderSelected() {
   };
   clearInterval(countdownTimer); tick(); countdownTimer = setInterval(tick, 30000);
 
+  // confidence
+  renderConfidence();
+
   // week strip
   const best = state.events.reduce((b, x, i) => (x.score > state.events[b].score ? i : b), 0);
   $("weekTitle").textContent = kind === "sunset" ? "Sunsets this week" : "Sunrises this week";
@@ -176,6 +203,24 @@ function renderSelected() {
        Towards the sun (75–250 km ${M.compass(d.az)}): low ${n(i.pathLow)}%, mid ${n(i.pathMid)}%<br>
        Rain ${n(i.rainP)}% · visibility ${n(i.visKm)} km · humidity ${n(i.hum)}%</div>`;
 }
+
+function renderConfidence() {
+  const e = state.events[state.sel], el = $("conf");
+  const ms = state.models ? modelScores(state.models, e.t) : [];
+  const c = M.confidenceFrom(ms.map(x => x.score));
+  el.hidden = !c;
+  $("confDetail").hidden = !c;
+  if (!c) return;
+  const col = { High: "#7ee08a", Medium: "#ffd166", Low: "#ff8a7a" }[c.level];
+  const range = c.min === c.max ? `${c.min}` : `${c.min}–${c.max}`;
+  el.innerHTML = `<span class="dot" style="background:${col}"></span>${c.level} confidence · models say ${range}`;
+  $("confDetail").innerHTML = `<b>Forecast confidence: ${c.level}.</b> ` +
+    ms.map(x => `${MODEL_NAMES[x.model]} ${x.score}`).join(" · ") +
+    `. ${c.level === "High" ? "The weather models agree, so the forecast is more trustworthy."
+      : c.level === "Medium" ? "The models partly disagree. Check again nearer the time."
+      : "The models disagree a lot. Treat this score as a rough guess and check again later."}`;
+}
+$("conf").addEventListener("click", () => { $("details").open = true; $("details").scrollIntoView({ behavior: "smooth", block: "start" }); });
 
 $("week").addEventListener("click", e => {
   const b = e.target.closest(".day");
@@ -330,7 +375,12 @@ async function refresh() {
     const events = scoreEvents(d);
     if (!events.length) throw new Error("no-event");
     state.data = d; state.events = events; state.sel = 0;
+    state.models = null;
     renderPlace(place); renderSelected(); renderRate(); renderLog(); show("result");
+    if (!offlineAt) loadModels(d).then(m => {
+      if (state.data !== d) return;
+      state.models = m; renderConfidence();
+    }).catch(() => { /* confidence is optional */ });
     $("offline").hidden = !offlineAt;
     if (offlineAt) {
       const t = new Date(offlineAt);

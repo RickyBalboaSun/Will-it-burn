@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v2.3
+- **Forecast confidence**: the same sky is scored with three independent weather models (European ECMWF, American GFS, German ICON). If they agree, confidence is High; if they disagree, the app says to treat the score as a rough guess. Tap the pill for each model's score.
+
 ## 2026-11-07 – v2.2
 - **Rate a sunset**: after sunset (or sunrise) a card asks how it was, with the 0–10 scale built in. Ratings and notes are saved on your phone.
 - **Your sunset log**: every rating, with the app's prediction alongside.
