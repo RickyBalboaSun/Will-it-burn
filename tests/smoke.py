@@ -186,6 +186,11 @@ def main():
         check("Near Bryce Canyon City" == pg.inner_text("#locName") and tname in pg.inner_text("#locSub"), f"tapping a nearby place switches to it ({tname})")
         tname = "Near Bryce Canyon City"
         pg.click("#saveSpot"); check("Saved" in pg.inner_text("#saveSpot"), "spot saved")
+        pg.click("#placeBtn"); pg.click("#gpsBtn"); pg.wait_for_selector("#result:not([hidden])")
+        pg.wait_for_function("document.getElementById('ms0') && /\\d/.test(document.getElementById('ms0').textContent)", timeout=8000)
+        check(not pg.is_hidden("#mySpotsCard"), "your spots shown on the main screen: " + pg.inner_text("#mySpots").replace("\n", " "))
+        pg.click(".spotchip"); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
+        check(pg.inner_text("#locName") == "Near Bryce Canyon City" and "25 km" in pg.inner_text("#locSub"), "tapping a spot chip opens it")
         pg.click("#placeBtn"); pg.wait_for_selector("#spots:not([hidden])")
         pg.wait_for_function("document.querySelector('#spotScore0') && /\\d/.test(document.querySelector('#spotScore0').textContent)", timeout=8000)
         check(True, "saved spot listed with a score: " + pg.inner_text("#spotList").replace("\n", " "))

@@ -25,6 +25,8 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 18 | Elevation + high-viewpoint caveat | Honest about a known weakness (H1) |
 | 19 | How it works explainer | For people you share it with |
 | 20 | Cloud timeline chart | Is it clearing or building at sunset? |
+| 21 | Nearby place names, tidy place names | Real names, not just distances |
+| 22 | Your spots on the main screen | Compare regular places without switching |
 
 ## Next (in order)
 | # | Feature | Why | Notes |

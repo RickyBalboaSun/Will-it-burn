@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v3.8
+- **Your spots** on the main screen: once you've saved spots, each one's next score appears in a strip, so you can compare your regular places at a glance. Tap one to open it.
+
 ## 2026-11-07 – v3.7
 - Tidier place names ("Swansea, Wales, United Kingdom" instead of the full official names), a shorter high-viewpoint note, and no more stray line breaks in the elevation.
 - Verified against the real Open-Meteo API and the live site from GitHub's servers: main forecast, all three confidence models, past dates back to 2024, the 85-location nearby scan and place search all work as the app expects.

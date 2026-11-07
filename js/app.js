@@ -584,6 +584,7 @@ $("saveSpot").addEventListener("click", () => {
     store.set("wib-spots", list.slice(0, 12));
   }
   renderSaveButton();
+  renderMySpots();
 });
 const prompt_name = p => `Spot at ${p.lat.toFixed(3)}, ${p.lon.toFixed(3)}`;
 
@@ -598,6 +599,30 @@ async function renderSpots() {
     scored.forEach((sp, i) => { const el = $("spotScore" + i); if (el) { el.textContent = sp.score ?? "–"; el.style.color = sp.score != null ? scoreColour(sp.score) : ""; } });
   } catch { list.forEach((_, i) => { const el = $("spotScore" + i); if (el) el.textContent = ""; }); }
 }
+async function renderMySpots() {
+  const list = spotsAll().filter(x => !sameSpot(x, state.place)).slice(0, 8);
+  $("mySpotsCard").hidden = !list.length || state.past;
+  if (!list.length || state.past) return;
+  const kind = state.kind;
+  $("mySpots").innerHTML = list.map((sp, i) => `
+    <button class="day spotchip" data-i="${i}"><span class="d">${esc(sp.name)}</span><span class="s" id="ms${i}">…</span><span class="best" id="msw${i}"></span></button>`).join("");
+  try {
+    const scored = await scoreSpots(list, kind);
+    if (kind !== state.kind) return;
+    scored.forEach((sp, i) => {
+      const el = $("ms" + i); if (!el) return;
+      el.textContent = sp.score ?? "–"; el.style.color = sp.score != null ? scoreColour(sp.score) : "";
+      if (sp.t) $("msw" + i).textContent = shortDay(sp.t, sp.offset);
+    });
+  } catch { list.forEach((_, i) => { const el = $("ms" + i); if (el) el.textContent = "–"; }); }
+  $("mySpots").onclick = ev => {
+    const b = ev.target.closest(".spotchip"); if (!b) return;
+    const sp = list[Number(b.dataset.i)];
+    run({ name: sp.name, label: sp.name, detail: sp.detail, lat: sp.lat, lon: sp.lon });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+}
+
 $("spotList").addEventListener("click", ev => {
   const b = ev.target.closest(".spot-row"); if (!b) return;
   const sp = spotsAll()[Number(b.dataset.i)];
@@ -737,6 +762,7 @@ $("pastGo").addEventListener("click", async () => {
 });
 function applyPastUi() {
   $("pastBar").hidden = !state.past;
+  if (state.past) $("mySpotsCard").hidden = true;
   $("weekCard").hidden = state.past;
   $("nearCard").hidden = state.past;
   $("countdown").hidden = state.past;
@@ -966,6 +992,7 @@ function showForecast(place, d, at, mode) {
   $("offline").hidden = mode !== "offline";
   if (mode === "offline") $("offline").textContent = `Offline · forecast from ${ago(Date.now() - at)}`;
   renderUpdated(mode === "updating");
+  if (mode !== "updating") renderMySpots();
   if (mode !== "offline") loadModels(d).then(m => {
     if (state.data !== d) return;
     state.models = m; renderConfidence();
