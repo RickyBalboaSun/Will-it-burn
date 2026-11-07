@@ -1,5 +1,10 @@
 # App changelog
 
+## 2026-11-07 – v4.2
+- **Log it on GitHub**: after rating, one tap opens a ready-made issue in your data repository; attach the photo and submit. A GitHub job adds it to the log, saves the photo, replies with the entry number and closes the issue. (Repository set in More → Logging.)
+- **On-location check**: when you rate, the app notes how far you are from the spot and how long after sunset, and marks the entry "✓ on location" when you're there.
+- **Photo check**: add your photo when rating and the app reads its date and GPS on the phone (nothing is uploaded), e.g. "photo taken 17:31 (11 min after sunset), 9 m from the spot". Many phones strip this when sharing; the app says so when it's missing.
+
 ## 2026-11-07 – v4.1
 - **New layout**: Tonight · Spots · Log · More tabs; the main screen keeps only the answer, the week, what to look for and when to watch.
 - **Window view** (the visual predictor): a cartoon of the view facing the sun, drawn from the forecast (cloud in each layer, the light path, the sun's real height), with a time slider from 30 minutes before to 30 after.

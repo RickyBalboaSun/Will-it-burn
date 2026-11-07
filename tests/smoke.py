@@ -82,6 +82,19 @@ def serve():
 import base64
 TILE = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk2PS/HgAFJQJVOyJ0rAAAAABJRU5ErkJggg==")
 LEAFLET = os.environ.get("LEAFLET_DIST", "/tmp/leaflet/package/dist")
+PHOTO = os.environ.get("TEST_PHOTO", "/tmp/test-photo.jpg")
+
+
+def make_test_photo():
+    """A JPEG with camera metadata: taken 17:31 local today (11 min after the mock sunset), a few metres from the spot."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return
+    im = Image.new("RGB", (320, 240), (220, 110, 90)); exif = im.getexif()
+    exif.get_ifd(0x8769)[0x9003] = time.strftime("%Y:%m:%d", time.gmtime(LOCAL_MIDNIGHT - OFFSET)) + " 17:31:00"
+    exif.get_ifd(0x8825).update({1: "N", 2: (37.0, 36.0, 35.2), 3: "W", 4: (112.0, 9.0, 42.0)})
+    im.save(PHOTO, exif=exif)
 FAILS = []
 def check(cond, msg):
     print(("  ok   " if cond else "  FAIL ") + msg)
@@ -89,6 +102,7 @@ def check(cond, msg):
 
 
 def main():
+    make_test_photo()
     httpd = serve(); base = f"http://127.0.0.1:{httpd.server_address[1]}/"
     with sync_playwright() as p:
         chrome = os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")
@@ -285,9 +299,9 @@ def main():
 
         ctx.close()
 
-        print("Rating flow (clock fixed at 9pm, after sunset)")
+        print("Rating flow (clock fixed at 17:45, 25 min after sunset)")
         ctx, pg = new_page()
-        pg.clock.install(time=LOCAL_MIDNIGHT + 21 * 3600)
+        pg.clock.install(time=LOCAL_MIDNIGHT + 17 * 3600 + 45 * 60)
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
         check(not pg.is_hidden("#rateCard"), "rating card shown after sunset")
         check("tonight" in pg.inner_text("#rateTitle").lower(), "asks about tonight")
@@ -295,13 +309,19 @@ def main():
         pg.click("#scale button[data-n='7']")
         check("Strong colour" in pg.inner_text("#rubric"), "rubric text for 7")
         pg.fill("#rateNotes", "Pink underlit altocumulus, peaked 10 min after sunset")
-        pg.click("#rateSave")
-        check(not pg.is_hidden("#rateCopy"), "copy button appears after saving")
+        if os.path.exists(PHOTO):
+            pg.set_input_files("#ratePhoto", PHOTO)
+            pg.wait_for_function("document.getElementById('photoMeta').textContent.includes('Photo taken') || document.getElementById('photoMeta').textContent.includes('no time')", timeout=8000)
+            check("Photo taken 17:31 (11 min after sunset)" in pg.inner_text("#photoMeta") and "m from the spot" in pg.inner_text("#photoMeta"), "photo time and place read: " + pg.inner_text("#photoMeta"))
+        pg.click("#rateSave"); pg.wait_for_selector("#rateShare:not([hidden])", timeout=10000)
+        check("on location" in pg.inner_text("#rateMsg"), "rated on location: " + pg.inner_text("#rateMsg"))
+        href = pg.get_attribute("#rateLog", "href")
+        check(href.startswith("https://github.com/RickyBalboaSun/will-it-burn-data/issues/new?title=") and "will-it-burn-log%20v1" in href and "rating%3A%207" in href, "Log it opens a pre-filled GitHub issue")
         check(not pg.eval_on_selector("#logCard", "e => e.hidden") and "(1)" in pg.eval_on_selector("#logCount", "e => e.textContent"), "log has 1 entry")
         ctx.grant_permissions(["clipboard-read", "clipboard-write"])
         pg.click("#rateCopy"); pg.wait_for_timeout(200)
         clip = pg.evaluate("navigator.clipboard.readText()")
-        check("My rating: 7/10" in clip and "App score:" in clip and "Pink underlit" in clip, "copied text has rating, score and notes")
+        check("My rating: 7/10" in clip and "App score:" in clip and "Pink underlit" in clip and "Check: rated on location" in clip, "copied text has rating, score, notes and the location check")
         print("    " + clip.replace("\n", "\n    "))
         shot(pg, "04-rating")
         pg.reload(); pg.wait_for_selector("#result:not([hidden])")

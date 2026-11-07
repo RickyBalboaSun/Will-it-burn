@@ -20,7 +20,7 @@ jobs:
         run: node --test tests/*.test.mjs
       - name: Install Playwright and Leaflet
         run: |
-          pip install playwright
+          pip install playwright pillow
           python -m playwright install --with-deps chromium
           mkdir -p /tmp/leaflet && cd /tmp/leaflet && npm pack leaflet@1.9.4 --silent && tar xzf leaflet-1.9.4.tgz
       - name: Browser smoke tests

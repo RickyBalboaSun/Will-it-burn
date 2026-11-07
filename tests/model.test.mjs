@@ -122,3 +122,28 @@ test("event times come from suffixed daily keys", () => {
   assert.deepEqual(M.eventTimes({ sunset_gfs_seamless: [2], sunrise_gfs_seamless: [3] }, "sunrise"), [3]);
   assert.deepEqual(M.eventTimes({}, "sunset"), []);
 });
+
+test("rating verification", () => {
+  const spot = { lat: 51.57, lon: -4.0 }, ev = 1_000_000;
+  const near = M.verification(spot, { lat: 51.5703, lon: -4.0002, accuracy: 15 }, ev + 22 * 60, ev);
+  assert.equal(near.onLocation, true); assert.match(near.text, /^rated on location \(\d+ m from the spot\), 22 min after sunset$/);
+  const far = M.verification(spot, { lat: 51.48, lon: -3.18, accuracy: 15 }, ev + 3 * 3600, ev);
+  assert.equal(far.onLocation, false); assert.match(far.text, /km from the spot, 3\.0 h after sunset/);
+  assert.match(M.verification(spot, null, ev + 600, ev).text, /location not available/);
+  assert.equal(M.verification(spot, { lat: 51.57, lon: -4.0 }, ev + 2 * 86400, ev).onLocation, false, "next-day rating isn't on location");
+});
+
+test("photo metadata check", () => {
+  const spot = { lat: 51.57, lon: -4.0 }, ev = Date.UTC(2026, 10, 8, 16, 36) / 1000;
+  assert.equal(M.photoCheck(spot, null, ev, 0), "photo has no time or location data");
+  const t = M.photoCheck(spot, { takenUnix: ev + 11 * 60, lat: 51.5705, lon: -4.0005 }, ev, 0);
+  assert.match(t, /^photo taken 16:47 \(11 min after sunset\), \d+ m from the spot$/);
+  assert.match(M.photoCheck(spot, { takenUnix: ev + 5 * 86400 }, ev, 0), /different day.*no location in the photo/);
+});
+
+test("log issue body is what the ingest job expects", () => {
+  const body = M.logIssueBody({ kind: "sunset", date: "2026-11-08", place: { name: "Near Mumbles", detail: "Swansea", lat: 51.57, lon: -4 },
+    facing: 236, predicted: 62, model: "1.2.0", rating: 8, notes: "Pink\nclouds", savedAt: Date.UTC(2026, 10, 8, 16, 58), verification: "rated on location", photoMeta: "" }, "16:36");
+  assert.match(body, /<!-- will-it-burn-log v1 -->\nkind: sunset\ndate: 2026-11-08\n/);
+  assert.match(body, /\nrating: 8\n/); assert.match(body, /\nnotes: Pink clouds\n/); assert.match(body, /<!-- end -->/);
+});

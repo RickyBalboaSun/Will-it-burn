@@ -95,9 +95,14 @@
       <div class="scale" id="scale" role="radiogroup" aria-label="Your rating out of 10"></div>
       <div class="rubric" id="rubric">Tap a number. Rate what you saw, not the photo.</div>
       <textarea class="field notes" id="rateNotes" rows="2" placeholder="Where was the colour? When did it peak?"></textarea>
+      <label class="photo-pick"><input type="file" accept="image/*" id="ratePhoto"><span>Add your photo (optional)</span></label>
+      <div class="photo-meta" id="photoMeta"></div>
       <div class="row">
         <button class="btn small" id="rateSave">Save rating</button>
-        <button class="btn small ghost" id="rateCopy" hidden>Copy for Claude</button>
+      </div>
+      <div class="row" id="rateShare" hidden>
+        <a class="btn small linkbtn-solid" id="rateLog" target="_blank" rel="noopener">Log it on GitHub</a>
+        <button class="btn small ghost" id="rateCopy">Copy for Claude</button>
       </div>
       <div class="rate-msg" id="rateMsg"></div>
     </section>
@@ -213,6 +218,13 @@
         <div class="near-status" id="alertStatus"></div>
       </div>
     </details>
+      <section class="card">
+        <h2>Logging</h2>
+        <div class="note" style="margin-top:0">"Log it on GitHub" opens a ready-made issue in this repository. Your logging job turns it into a data entry.</div>
+        <div class="row"><input class="field" id="logRepo" style="flex:1;min-height:44px;font-size:15px;padding:8px 12px" autocomplete="off" spellcheck="false" aria-label="GitHub repository for logs"><button class="btn small" id="logRepoSave" style="flex:0 0 auto">Save</button></div>
+        <div class="rate-msg" id="logRepoMsg"></div>
+      </section>
+
       <section class="card">
         <h2>About</h2>
         <div class="row"><button class="btn small ghost" id="howBtn2">How it works</button><button class="btn small ghost" id="newBtn">What's new</button></div>

@@ -298,3 +298,59 @@ export function shouldAlert(cfg, e, now, offset, id) {
   }
   return sameDay && localHour >= 8 && e.t - now >= 30 * 60;
 }
+
+/** Great-circle distance in km. */
+export function distanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371, dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+const humanGap = mins => { const a = Math.abs(Math.round(mins)); return a < 90 ? `${a} min` : `${(a / 60).toFixed(a < 600 ? 1 : 0)} h`; };
+const humanDist = km => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(km < 10 ? 1 : 0)} km`;
+
+/**
+ * How trustworthy is a rating? Compares where/when it was made with the spot and the event.
+ * pos: {lat, lon, accuracy} or null; nowSec, eventSec in unix seconds.
+ */
+export function verification(spot, pos, nowSec, eventSec, kind = "sunset") {
+  const mins = (nowSec - eventSec) / 60, word = kind;
+  const when = mins >= 0 ? `${humanGap(mins)} after ${word}` : `${humanGap(mins)} before ${word}`;
+  if (!pos) return { onLocation: false, text: `rated ${when} (location not available)` };
+  const km = distanceKm(spot.lat, spot.lon, pos.lat, pos.lon);
+  const near = km <= 0.5 + Math.min(1, (pos.accuracy || 0) / 1000);
+  const fresh = mins >= -30 && mins <= 3 * 60;
+  return {
+    onLocation: near && fresh,
+    text: near ? `rated on location (${humanDist(km)} from the spot), ${when}` : `rated ${humanDist(km)} from the spot, ${when}`,
+  };
+}
+
+/** Describe photo metadata relative to the spot and event. meta: {takenUnix, lat, lon} (any may be missing). */
+export function photoCheck(spot, meta, eventSec, offset, kind = "sunset") {
+  if (!meta || (meta.takenUnix == null && meta.lat == null)) return "photo has no time or location data";
+  const parts = [];
+  if (meta.takenUnix != null) {
+    const d = new Date((meta.takenUnix + offset) * 1000);
+    const hhmm = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+    const mins = (meta.takenUnix - eventSec) / 60;
+    parts.push(Math.abs(mins) > 24 * 60 ? `photo taken on a different day (${d.toISOString().slice(0, 10)})`
+      : `photo taken ${hhmm} (${humanGap(mins)} ${mins >= 0 ? "after" : "before"} ${kind})`);
+  } else parts.push("photo has no time");
+  if (meta.lat != null && meta.lon != null) parts.push(`${humanDist(distanceKm(spot.lat, spot.lon, meta.lat, meta.lon))} from the spot`);
+  else parts.push("no location in the photo");
+  return parts.join(", ");
+}
+
+/** The GitHub issue body that the data repo's ingest job parses. */
+export function logIssueBody(x, clockText) {
+  const lines = [
+    "Rated in the Will It Burn app.", "", "<!-- will-it-burn-log v1 -->",
+    `kind: ${x.kind}`, `date: ${x.date}`, `time_local: ${clockText}`,
+    `place: ${x.place.name}`, `detail: ${x.place.detail || ""}`, `lat: ${x.place.lat}`, `lon: ${x.place.lon}`,
+    `facing: ${x.facing}`, `app_score: ${x.predicted}`, `model: ${x.model}`, `rating: ${x.rating}`,
+    `notes: ${(x.notes || "").replace(/\s+/g, " ")}`, `rated_at: ${new Date(x.savedAt).toISOString().slice(0, 16)}Z`,
+    `verification: ${x.verification || ""}`, `photo_meta: ${x.photoMeta || ""}`, "<!-- end -->", "",
+    "**Attach your photo below this line** (drag it in, or tap the paperclip), then submit.", "",
+  ];
+  return lines.join("\n");
+}

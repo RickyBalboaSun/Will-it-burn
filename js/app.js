@@ -1,5 +1,6 @@
 import * as M from "./model.js";
 import * as V from "./visuals.js";
+import { readExif } from "./exif.js";
 
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -413,7 +414,36 @@ function recentEvent(d) {
   return M.scoreModels(d.locations, Math.max(...times));
 }
 
-let rateSel = null, rateEvent = null;
+let rateSel = null, rateEvent = null, photoMeta = "";
+const DEFAULT_LOG_REPO = "RickyBalboaSun/will-it-burn-data";
+const logRepo = () => store.get("wib-log-repo", DEFAULT_LOG_REPO);
+
+/* position at the moment of rating, for the on-location check */
+function currentPosition() {
+  return new Promise(res => {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }),
+      () => res(null), { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 });
+  });
+}
+
+/* photo date/location, read on the phone (the photo itself isn't uploaded anywhere) */
+$("ratePhoto").addEventListener("change", async () => {
+  const file = $("ratePhoto").files[0];
+  photoMeta = ""; $("photoMeta").textContent = "";
+  if (!file || !rateEvent) return;
+  $("photoMeta").textContent = "Reading the photo…";
+  let meta = null;
+  try {
+    const x = readExif(await file.slice(0, 256 * 1024).arrayBuffer());   // EXIF sits at the start of the file
+    // camera clocks have no time zone: treat the time as local to the spot
+    const k = x.taken;
+    const taken = k ? Date.UTC(k.y, k.m - 1, k.d, k.hh, k.mm, k.ss) / 1000 - state.data.offset : null;
+    meta = { takenUnix: taken, lat: x.lat, lon: x.lon };
+  } catch { meta = null; }
+  photoMeta = M.photoCheck(state.place, meta, rateEvent.t, state.data.offset, state.data.kind);
+  $("photoMeta").textContent = photoMeta.charAt(0).toUpperCase() + photoMeta.slice(1) + ".";
+});
 function renderRate() {
   const d = state.data, e = state.past ? state.events[0] : recentEvent(d);
   rateEvent = e;
@@ -427,7 +457,9 @@ function renderRate() {
   $("rateTitle").textContent = dn === "Tonight" || dn === "Today" ? `How was ${dn.toLowerCase()}'s ${word}?` : `How was the ${word} on ${dn}?`;
   $("rateSub").textContent = `The app ${state.past ? "would have predicted" : "predicted"} ${e.score}/100 for the ${word} at ${clock(e.t, off)}. Your rating helps tune the model.`;
   $("rateNotes").value = existing ? existing.notes : "";
-  $("rateCopy").hidden = !existing;
+  $("rateShare").hidden = !existing;
+  if (existing) setLogLink(existing);
+  photoMeta = existing ? existing.photoMeta || "" : ""; $("photoMeta").textContent = ""; $("ratePhoto").value = "";
   $("rateSave").textContent = existing ? "Update rating" : "Save rating";
   $("rateMsg").textContent = existing ? "Saved on this phone." : "";
   drawScale();
@@ -441,23 +473,35 @@ $("scale").addEventListener("click", ev => {
   const b = ev.target.closest("button"); if (!b) return;
   rateSel = Number(b.dataset.n); drawScale();
 });
-$("rateSave").addEventListener("click", () => {
+$("rateSave").addEventListener("click", async () => {
   if (rateSel == null) { $("rateMsg").textContent = "Tap a number from 0 to 10 first."; return; }
   const d = state.data, e = rateEvent, p = state.place;
+  $("rateMsg").textContent = "Saving…";
+  const pos = state.past ? null : await currentPosition();
+  const ver = state.past ? { onLocation: false, text: "rated later from a past date" } : M.verification(p, pos, Date.now() / 1000, e.t, d.kind);
   const entry = {
     id: entryId(d.kind, e.t, d.offset, p), kind: d.kind, t: e.t, offset: d.offset,
     place: { name: p.label || p.name, detail: p.detail || "", lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) },
     facing: Math.round(d.az), predicted: e.score, model: M.MODEL_VERSION,
     inputs: Object.fromEntries(Object.entries(e.inputs).map(([k, v]) => [k, v == null ? null : Math.round(v)])),
     rating: rateSel, notes: $("rateNotes").value.trim(), savedAt: Date.now(),
+    date: isoDay(e.t, d.offset), verification: ver.text, onLocation: ver.onLocation, photoMeta,
   };
   const log = logAll().filter(x => x.id !== entry.id);
   log.push(entry); log.sort((a, b) => b.t - a.t);
   store.set("wib-log", log);
-  $("rateMsg").textContent = "Saved on this phone. Tap Copy for Claude, then paste it to Claude with your photo.";
-  $("rateCopy").hidden = false; $("rateSave").textContent = "Update rating";
+  $("rateMsg").innerHTML = `Saved on this phone${entry.onLocation ? ' <span class="badge-ok">✓ on location</span>' : ""}. Now log it, with your photo.`;
+  $("rateShare").hidden = false; $("rateSave").textContent = "Update rating";
+  setLogLink(entry);
   renderLog();
 });
+
+function setLogLink(x) {
+  const word = x.kind === "sunset" ? "Sunset" : "Sunrise";
+  const title = `${word} ${x.date} – ${x.place.name} – ${x.rating}/10`;
+  const body = M.logIssueBody(x, clock(x.t, x.offset));
+  $("rateLog").href = `https://github.com/${logRepo()}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+}
 
 function entryText(x) {
   const word = x.kind === "sunset" ? "Sunset" : "Sunrise";
@@ -469,6 +513,7 @@ function entryText(x) {
     `My rating: ${x.rating}/10`,
   ];
   if (x.notes) lines.push(`Notes: ${x.notes}`);
+  if (x.verification) lines.push(`Check: ${x.verification}${x.photoMeta ? "; " + x.photoMeta : ""}`);
   return lines.join("\n");
 }
 async function copyText(text, msgEl) {
@@ -493,7 +538,7 @@ function renderLog() {
   $("logCount").textContent = log.length ? `(${log.length})` : "";
   $("logList").innerHTML = log.map(x => `
     <div class="log-item">
-      <div>${esc(x.place.name)}<div class="lp">${x.kind === "sunset" ? "Sunset" : "Sunrise"} · ${esc(isoDay(x.t, x.offset))}${x.notes ? " · " + esc(x.notes.slice(0, 60)) : ""}</div></div>
+      <div>${esc(x.place.name)}${x.onLocation ? '<span class="badge-ok">✓ on location</span>' : ""}<div class="lp">${x.kind === "sunset" ? "Sunset" : "Sunrise"} · ${esc(isoDay(x.t, x.offset))}${x.notes ? " · " + esc(x.notes.slice(0, 60)) : ""}</div></div>
       <div class="lr">You ${x.rating}/10<div class="lp">App ${x.predicted}</div></div>
       <button class="del" data-id="${esc(x.id)}">Delete</button>
     </div>`).join("");
@@ -1058,6 +1103,14 @@ $("searchForm").addEventListener("submit", async e => {
 });
 $("gpsBtn").addEventListener("click", locate);
 $("placeBtn").addEventListener("click", () => openPicker());
+
+/* ---------- logging settings ---------- */
+$("logRepo").value = logRepo();
+$("logRepoSave").addEventListener("click", () => {
+  const v = $("logRepo").value.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
+  if (!/^[\w.-]+\/[\w.-]+$/.test(v)) { $("logRepoMsg").textContent = "Use the form owner/repository."; return; }
+  store.set("wib-log-repo", v); $("logRepo").value = v; $("logRepoMsg").textContent = "Saved.";
+});
 
 /* ---------- tabs ---------- */
 function showTab(name) {

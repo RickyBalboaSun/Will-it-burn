@@ -250,3 +250,12 @@ body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 .loc-sub, .raw, .tl-legend { opacity: 0.9; }
 .scale { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
 .scale button { min-height: 46px; font-size: 17px; }
+
+/* photo + log it */
+.photo-pick { display: flex; align-items: center; gap: 10px; font-size: 14px; margin-bottom: 8px; }
+.photo-pick input { font: inherit; font-size: 13px; color: #fff; max-width: 100%; }
+.photo-pick input::file-selector-button { font: inherit; font-size: 13px; border: 0; border-radius: 10px; padding: 8px 12px; margin-right: 8px; background: rgba(255,255,255,0.14); color: #fff; }
+.photo-pick span { display: none; }
+.photo-meta { font-size: 13px; opacity: 0.9; margin: -2px 0 10px; min-height: 0; }
+.linkbtn-solid { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.badge-ok { display: inline-block; font-size: 11px; font-weight: 600; color: #14532d; background: #d8f5e3; border-radius: 999px; padding: 2px 7px; margin-left: 6px; }
