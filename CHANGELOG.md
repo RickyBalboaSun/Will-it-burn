@@ -1,5 +1,9 @@
 # App changelog
 
+## 2026-11-07 – v2.5
+- **Find a better spot nearby**: scores 17 places in two rings around you (25 or 50 km) for the same sunset, shows them on a map, and says whether a short trip is worth it. Tap a place to switch to it.
+- **Saved spots**: save your favourite viewpoints. They're listed on the place screen with their next score, so you can compare them at a glance.
+
 ## 2026-11-07 – v2.4
 - **Light path map**: a map of exactly which sky is being judged. Your spot, the line towards the sun, and the five sample points coloured clear, some cloud or cloudy. Tap a point for its low, mid and high cloud. It only loads when opened, to save data.
 

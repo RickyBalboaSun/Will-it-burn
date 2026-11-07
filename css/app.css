@@ -131,3 +131,18 @@ details[open] summary::after { content: "Hide"; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .leaflet-container { font: 13px Inter, system-ui, sans-serif; }
 .leaflet-popup-content { color: #1a1424; margin: 10px 12px; line-height: 1.5; }
+
+/* saved spots and nearby scan */
+.save-spot { margin-top: 8px; background: none; border: 0; font-size: 13.5px; opacity: 0.9; text-decoration: underline; padding: 4px; }
+.spots { width: 100%; max-width: 360px; margin-top: 26px; text-align: left; }
+.spots h2 { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.75; margin: 0 0 8px; }
+.spot-row { display: flex !important; justify-content: space-between; align-items: center; gap: 10px; }
+.spot-score { font-family: Fraunces, Georgia, serif; font-size: 22px; font-weight: 700; min-width: 34px; text-align: right; }
+.radius.on { background: rgba(255,255,255,0.9); color: #2a1838; }
+.near-status { font-size: 14px; opacity: 0.9; min-height: 18px; }
+.near-list { display: grid; gap: 6px; }
+.near-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; background: rgba(255,255,255,0.08); border: 0; border-radius: 12px; padding: 10px 12px; text-align: left; font-size: 14.5px; }
+.near-item .ns { font-family: Fraunces, Georgia, serif; font-size: 24px; font-weight: 700; }
+.near-item small { opacity: 0.7; }
+.leaflet-tooltip.near-tip { background: transparent; border: 0; box-shadow: none; color: #1a1424; font-weight: 700; font-size: 12px; padding: 0; }
+.leaflet-tooltip.near-tip::before { display: none; }

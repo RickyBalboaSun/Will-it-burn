@@ -406,6 +406,129 @@ $("logCopyAll").addEventListener("click", () => {
   copyText(`Will It Burn log: ${log.length} entr${log.length === 1 ? "y" : "ies"}\n\n` + log.map(entryText).join("\n\n"), $("logMsg"));
 });
 
+
+/* ---------- batch scoring for several places ---------- */
+/** Score several places at once (one request). If t is given, score that time; otherwise each place's next event. */
+async function scoreSpots(spots, kind, t = null) {
+  const now = Date.now() / 1000;
+  const az = M.eventAzimuth(spots[0].lat, M.dayOfYear(t || now), kind);
+  const pts = spots.flatMap(sp => M.ALL_KM.map(km => M.destination(sp.lat, sp.lon, az, km)));
+  const daysAhead = t ? Math.ceil((t - now) / 86400) + 2 : 2;
+  const params = new URLSearchParams({
+    latitude: pts.map(p => p[0].toFixed(3)).join(","), longitude: pts.map(p => p[1].toFixed(3)).join(","),
+    hourly: M.VARS.join(","), daily: "sunset,sunrise", timezone: "auto", timeformat: "unixtime",
+    forecast_days: String(Math.min(8, Math.max(2, daysAhead))),
+  });
+  let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params, 20000);
+  if (!Array.isArray(data)) data = [data];
+  const n = M.ALL_KM.length;
+  return spots.map((sp, i) => {
+    const locs = data.slice(i * n, i * n + n);
+    let when = t;
+    if (when == null) when = (locs[0].daily[kind] || []).find(x => x != null && x + 20 * 60 > now);
+    if (when == null) return { ...sp, score: null };
+    const S = M.samplesAt(locs, when);
+    return M.hasData(S) ? { ...sp, t: when, offset: locs[0].utc_offset_seconds || 0, ...M.scoreSamples(S) } : { ...sp, score: null };
+  });
+}
+
+/* ---------- saved spots ---------- */
+const spotsAll = () => store.get("wib-spots", []);
+const sameSpot = (a, b) => Math.abs(a.lat - b.lat) < 0.002 && Math.abs(a.lon - b.lon) < 0.002;
+function renderSaveButton() {
+  const p = state.place; if (!p) return;
+  const saved = spotsAll().some(x => sameSpot(x, p));
+  $("saveSpot").hidden = false;
+  $("saveSpot").textContent = saved ? "★ Saved spot (tap to remove)" : "☆ Save this spot";
+}
+$("saveSpot").addEventListener("click", () => {
+  const p = state.place, list = spotsAll();
+  if (list.some(x => sameSpot(x, p))) store.set("wib-spots", list.filter(x => !sameSpot(x, p)));
+  else {
+    const name = p.gps && p.label === "My location" ? prompt_name(p) : (p.label || p.name);
+    list.unshift({ name, detail: p.detail || "", lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) });
+    store.set("wib-spots", list.slice(0, 12));
+  }
+  renderSaveButton();
+});
+const prompt_name = p => `Spot at ${p.lat.toFixed(3)}, ${p.lon.toFixed(3)}`;
+
+async function renderSpots() {
+  const list = spotsAll();
+  $("spots").hidden = !list.length;
+  if (!list.length) return;
+  $("spotList").innerHTML = list.map((sp, i) => `
+    <button type="button" class="spot-row" data-i="${i}"><span>${esc(sp.name)}<br><small>${esc(sp.detail || `${sp.lat}, ${sp.lon}`)}</small></span><span class="spot-score" id="spotScore${i}">…</span></button>`).join("");
+  try {
+    const scored = await scoreSpots(list.slice(0, 10), state.kind);
+    scored.forEach((sp, i) => { const el = $("spotScore" + i); if (el) { el.textContent = sp.score ?? "–"; el.style.color = sp.score != null ? scoreColour(sp.score) : ""; } });
+  } catch { list.forEach((_, i) => { const el = $("spotScore" + i); if (el) el.textContent = ""; }); }
+}
+$("spotList").addEventListener("click", ev => {
+  const b = ev.target.closest(".spot-row"); if (!b) return;
+  const sp = spotsAll()[Number(b.dataset.i)];
+  run({ name: sp.name, label: sp.name, detail: sp.detail, lat: sp.lat, lon: sp.lon });
+});
+
+/* ---------- find a better spot nearby ---------- */
+let nearRadius = 25, nearMap = null, nearLayer = null;
+document.querySelectorAll(".radius").forEach(b => b.addEventListener("click", () => {
+  nearRadius = Number(b.dataset.r);
+  document.querySelectorAll(".radius").forEach(x => x.classList.toggle("on", x === b));
+}));
+$("scanBtn").addEventListener("click", async () => {
+  const p = state.place, e = state.events[state.sel], d = state.data;
+  const R = nearRadius, cands = [{ lat: p.lat, lon: p.lon, dist: 0, dir: "" }];
+  for (const [ring, n] of [[R / 2, 8], [R, 8]]) {
+    for (let k = 0; k < n; k++) {
+      const brg = k * 360 / n + (ring === R ? 22.5 : 0);
+      const [la, lo] = M.destination(p.lat, p.lon, brg, ring);
+      cands.push({ lat: la, lon: lo, dist: Math.round(ring), dir: M.compass(brg) });
+    }
+  }
+  $("scanBtn").disabled = true; $("nearStatus").textContent = `Scanning ${cands.length} places…`; $("nearList").innerHTML = "";
+  try {
+    const scored = (await scoreSpots(cands, d.kind, e.t)).filter(x => x.score != null);
+    const here = scored.find(x => x.dist === 0);
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0];
+    $("nearStatus").innerHTML = !here ? "" : best.dist === 0 || best.score - here.score < 8
+      ? `<b>You're already in a good spot.</b> Nowhere within ${R} km scores clearly better than here (${here.score}).`
+      : `<b>${best.dist} km ${best.dir} looks better:</b> ${best.score} vs ${here.score} here.`;
+    $("nearList").innerHTML = scored.slice(0, 6).map(x => `
+      <button class="near-item" data-lat="${x.lat}" data-lon="${x.lon}" data-name="${x.dist ? `${x.dist} km ${x.dir}` : "Here"}">
+        <span>${x.dist ? `${x.dist} km ${x.dir}` : "Where you are"}<br><small>${x.verdict}${x.dist ? " · tap to check it" : ""}</small></span>
+        <span class="ns" style="color:${scoreColour(x.score)}">${x.score}</span>
+      </button>`).join("") + `<div class="note">This only knows about the sky. Check the spot has an open view ${M.compass(d.az)}, with no hills, trees or buildings in the way.</div>`;
+    drawNearMap(scored, p);
+  } catch {
+    $("nearStatus").textContent = "Couldn't scan right now. Try again in a minute.";
+  } finally { $("scanBtn").disabled = false; }
+});
+$("nearList").addEventListener("click", ev => {
+  const b = ev.target.closest(".near-item"); if (!b || b.dataset.name === "Here") return;
+  const base = state.place.label || state.place.name;
+  run({ name: `${b.dataset.name} of ${base}`, label: `${b.dataset.name} of ${base}`, detail: "", lat: Number(b.dataset.lat), lon: Number(b.dataset.lon) });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+async function drawNearMap(scored, p) {
+  let L; try { L = await loadLeaflet(); } catch { return; }
+  $("nearMap").hidden = false;
+  if (!nearMap) {
+    nearMap = L.map("nearMap", { zoomControl: false });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 18, subdomains: "abcd",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' }).addTo(nearMap);
+  }
+  if (nearLayer) nearLayer.remove();
+  nearLayer = L.layerGroup().addTo(nearMap);
+  for (const x of scored) {
+    L.circleMarker([x.lat, x.lon], { radius: x.dist === 0 ? 13 : 11, color: x.dist === 0 ? "#fff" : "rgba(255,255,255,0.6)", weight: 2, fillColor: scoreColour(x.score), fillOpacity: 0.95 })
+      .bindTooltip(String(x.score), { permanent: true, direction: "center", className: "near-tip" }).addTo(nearLayer);
+  }
+  nearMap.fitBounds(L.latLngBounds(scored.map(x => [x.lat, x.lon])).pad(0.12));
+  setTimeout(() => nearMap.invalidateSize(), 50);
+}
+
 /* ---------- flow ---------- */
 async function refresh() {
   const place = state.place;
@@ -426,7 +549,8 @@ async function refresh() {
     if (!events.length) throw new Error("no-event");
     state.data = d; state.events = events; state.sel = 0;
     state.models = null;
-    renderPlace(place); renderSelected(); renderRate(); renderLog(); show("result");
+    renderPlace(place); renderSaveButton(); renderSelected(); renderRate(); renderLog(); show("result");
+    $("nearList").innerHTML = ""; $("nearStatus").textContent = ""; $("nearMap").hidden = true;
     if (!offlineAt) loadModels(d).then(m => {
       if (state.data !== d) return;
       state.models = m; renderConfidence();
@@ -467,6 +591,7 @@ function openPicker(msg) {
   $("pickerText").textContent = msg || "Where are you watching from?";
   $("results").innerHTML = ""; $("searchErr").hidden = true;
   show("picker");
+  renderSpots();
 }
 
 function locate() {

@@ -31,9 +31,10 @@ def forecast_body(qs):
     sunrises = [start + d * 86400 + 7 * 3600 for d in range(days)]
     models = qs.get("models", [""])[0]
     out = []
-    for i, _ in enumerate(lats):
-        far = i >= 2
-        mid = [DAILY_MID[(h // 24) % 8] if not far else 5 for h in range(hours)]
+    for i, lat in enumerate(lats):
+        far = (i % 5) >= 2
+        jitter = 0 if i < 5 else int(abs(float(lat)) * 1000) % 40 - 20   # vary batched spots
+        mid = [max(0, min(100, DAILY_MID[(h // 24) % 8] + jitter)) if not far else 5 for h in range(hours)]
         base = {"cloud_cover": [min(100, m + 10) for m in mid], "cloud_cover_low": [0] * hours,
                 "cloud_cover_mid": mid, "cloud_cover_high": [10] * hours, "visibility": [40000] * hours,
                 "relative_humidity_2m": [60] * hours, "precipitation_probability": [0] * hours, "precipitation": [0.0] * hours}
@@ -127,6 +128,27 @@ def main():
         sel = pg.query_selector_all(".day")[2]
         check("on" in (sel.get_attribute("class") or ""), "selected day highlighted")
         check(pg.inner_text("#score") == sel.query_selector(".s").inner_text(), "hero shows the selected day's score")
+        print("Nearby scan + saved spots")
+        pg.click("#nearCard summary"); pg.click(".radius[data-r='50']"); pg.click("#scanBtn")
+        pg.wait_for_selector(".near-item", timeout=10000); pg.wait_for_timeout(500)
+        check(len(pg.query_selector_all(".near-item")) == 6, "nearby scan lists top 6 places")
+        check(pg.inner_text("#nearStatus") != "", "scan verdict: " + pg.inner_text("#nearStatus"))
+        check(len(pg.query_selector_all("#nearMap path.leaflet-interactive")) == 17, "17 places on the scan map")
+        pg.eval_on_selector("#nearCard", "e => e.scrollIntoView()"); shot(pg, "06-nearby")
+        target = [b for b in pg.query_selector_all(".near-item") if b.get_attribute("data-name") != "Here"][0]
+        tname = target.get_attribute("data-name")
+        target.click(); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
+        check(tname in pg.inner_text("#locName"), f"tapping a nearby place switches to it ({tname})")
+        pg.click("#saveSpot"); check("Saved" in pg.inner_text("#saveSpot"), "spot saved")
+        pg.click("#placeBtn"); pg.wait_for_selector("#spots:not([hidden])")
+        pg.wait_for_function("document.querySelector('#spotScore0') && /\\d/.test(document.querySelector('#spotScore0').textContent)", timeout=8000)
+        check(True, "saved spot listed with a score: " + pg.inner_text("#spotList").replace("\n", " "))
+        shot(pg, "07-spots")
+        pg.click(".spot-row"); pg.wait_for_selector("#result:not([hidden])")
+        check(tname in pg.inner_text("#locName"), "opening a saved spot")
+        pg.click("#saveSpot"); check("Save this spot" in pg.inner_text("#saveSpot"), "spot removed")
+        pg.click("#placeBtn"); pg.wait_for_selector("#picker:not([hidden])"); pg.click("#gpsBtn"); pg.wait_for_selector("#result:not([hidden])")
+
         pg.click("#kindSunrise"); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
         check("sunrise" in pg.inner_text("#when").lower(), "sunrise mode")
         shot(pg, "02-sunrise", True)

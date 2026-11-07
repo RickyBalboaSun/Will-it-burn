@@ -42,6 +42,10 @@
       <div class="err" id="searchErr" hidden></div>
       <div class="results" id="results"></div>
     </form>
+    <div class="spots" id="spots" hidden>
+      <h2>Your spots</h2>
+      <div class="results" id="spotList"></div>
+    </div>
   </section>
 
   <!-- result -->
@@ -55,6 +59,7 @@
       <div class="loc-name" id="locName"></div>
       <div class="loc-sub" id="locSub"></div>
       <div class="loc-warn" id="locWarn" hidden></div>
+      <button class="save-spot" id="saveSpot" hidden>☆ Save this spot</button>
     </div>
 
     <section class="hero">
@@ -90,6 +95,21 @@
       <div class="times" id="times"></div>
       <div class="note" id="timesNote"></div>
     </section>
+
+    <details class="card" id="nearCard">
+      <summary>Find a better spot nearby</summary>
+      <div class="detail-body">
+        <div class="note" style="margin-top:0">Scores 17 places in rings around you for the same sunset, to see if a short trip would give a better show.</div>
+        <div class="row">
+          <button class="btn small ghost radius on" data-r="25">Within 25 km</button>
+          <button class="btn small ghost radius" data-r="50">Within 50 km</button>
+        </div>
+        <button class="btn small" id="scanBtn">Scan nearby</button>
+        <div class="near-status" id="nearStatus"></div>
+        <div id="nearMap" class="map" hidden></div>
+        <div class="near-list" id="nearList"></div>
+      </div>
+    </details>
 
     <details class="card" id="mapCard">
       <summary>Light path map</summary>
