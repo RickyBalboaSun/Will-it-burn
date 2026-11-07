@@ -1103,6 +1103,14 @@ if ("serviceWorker" in navigator) {
 }
 $("modelVersion").textContent = M.MODEL_VERSION;
 $("howBtn").addEventListener("click", () => $("how").showModal());
+// "What's new": shown once per release to people who used an earlier version
+const RELEASE = "3.9";
+(() => {
+  const seen = store.get("wib-release");
+  const returning = store.get("wib-place") || store.get("wib-kind");
+  if (seen !== RELEASE && returning) setTimeout(() => { try { $("whatsNew").showModal(); } catch { /* dialog unsupported */ } }, 1200);
+  store.set("wib-release", RELEASE);
+})();
 try { localStorage.removeItem("wib-last"); } catch { /* old cache format */ }
 setKindButtons();
 const saved = store.get("wib-place");

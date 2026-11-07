@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v3.9
+- **What's new** card, shown once after an update, so returning users can find new features.
+
 ## 2026-11-07 – v3.8
 - **Your spots** on the main screen: once you've saved spots, each one's next score appears in a strip, so you can compare your regular places at a glance. Tap one to open it.
 

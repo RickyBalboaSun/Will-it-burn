@@ -147,7 +147,7 @@ def main():
         pg.click("#howBtn"); pg.wait_for_timeout(200)
         check(pg.evaluate("document.getElementById('how').open"), "explainer opens")
         shot(pg, "12-how")
-        pg.click(".how-close"); pg.wait_for_timeout(100)
+        pg.click("#how .how-close"); pg.wait_for_timeout(100)
         check(not pg.evaluate("document.getElementById('how').open"), "explainer closes")
 
         print("Calendar + compass")
@@ -332,6 +332,18 @@ def main():
         pg.click("#pastCard summary") if not pg.eval_on_selector("#pastCard", "e => e.open") else None
         pg.fill("#pastDate", "2099-01-01"); pg.click("#pastGo")
         check("earlier" in pg.inner_text("#pastStatus"), "future date rejected")
+        ctx.close()
+
+        print("What's new")
+        ctx, pg = new_page()
+        pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000); pg.wait_for_timeout(1500)
+        check(not pg.evaluate("document.getElementById('whatsNew').open"), "first-time visitor: no what's-new")
+        pg.evaluate("localStorage.setItem('wib-release', JSON.stringify('1.0'))")
+        pg.reload(); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(1600)
+        check(pg.evaluate("document.getElementById('whatsNew').open"), "returning user sees what's new once")
+        shot(pg, "14-whatsnew")
+        pg.click("#whatsNew .btn"); pg.reload(); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(1600)
+        check(not pg.evaluate("document.getElementById('whatsNew').open"), "not shown again")
         ctx.close()
 
         print("Search flow (GPS denied)")
