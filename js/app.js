@@ -242,6 +242,9 @@ function renderSelected() {
   };
   clearInterval(countdownTimer); tick(); countdownTimer = setInterval(tick, 30000);
 
+  // what to look for
+  $("tips").innerHTML = M.lookFor(e, kind, d.az).map(x => `<div class="tip"><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div>`).join("");
+
   // confidence and map
   renderConfidence();
   drawMap();

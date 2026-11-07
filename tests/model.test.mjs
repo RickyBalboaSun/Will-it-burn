@@ -74,3 +74,17 @@ test("confidence levels", () => {
   assert.equal(M.confidenceFrom([10, 70]).level, "Low");
   assert.equal(M.confidenceFrom([50]), null);
 });
+
+test("look-for tips match the conditions", () => {
+  const mk = (factors, inputs) => ({ factors: { canvas: 1, path: 1, local: 1, overcast: 1, rain: 1, clarity: 1, ...factors }, inputs: { cMid: 50, cHigh: 0, low: 0, pathLow: 0, rainP: 0, visKm: 40, ...inputs } });
+  const titles = (e, kind = "sunset") => M.lookFor(e, kind, 250).map(t => t.t);
+  assert.ok(titles(mk({}, {})).includes("Underlit clouds"));
+  assert.ok(titles(mk({ canvas: 0 }, { cMid: 0 })).includes("Belt of Venus"));
+  const venus = M.lookFor(mk({ canvas: 0 }, { cMid: 0 }), "sunset", 250).find(t => t.t === "Belt of Venus");
+  assert.match(venus.d, /north-east|east/);
+  assert.ok(titles(mk({}, { rainP: 50 })).includes("Rainbow chance"));
+  assert.ok(titles(mk({ path: 0.2 }, {})).includes("Watch for a gap"));
+  assert.ok(titles(mk({}, { low: 40 })).includes("Sunbeams"));
+  assert.ok(M.lookFor(mk({}, {}), "sunrise", 110)[0].d.includes("before sunrise"));
+  assert.ok(M.lookFor(mk({ canvas: 0.1, path: 0.5, overcast: 0.5 }, { cMid: 0 }), "sunset", 250).length >= 1);
+});

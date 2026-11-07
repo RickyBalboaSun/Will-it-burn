@@ -217,3 +217,30 @@ export function confidenceFrom(scores) {
   const level = spread <= 15 ? "High" : spread <= 30 ? "Medium" : "Low";
   return { level, spread, min: Math.min(...v), max: Math.max(...v), n: v.length };
 }
+
+/**
+ * Things worth looking for, given the forecast. Returns up to 4 short tips.
+ * e: scored event (from scoreSamples); kind: "sunset" | "sunrise"; az: bearing of the sun.
+ */
+export function lookFor(e, kind, az) {
+  const f = e.factors, i = e.inputs, tips = [];
+  const opposite = compass(az + 180), towards = compass(az);
+  const after = kind === "sunset" ? "after sunset" : "before sunrise";
+  if (f.canvas >= 0.6 && f.path >= 0.6)
+    tips.push({ t: "Underlit clouds", d: `The clouds overhead should light up from below. The strongest colour usually comes 5–15 minutes ${after}, so stay put.` });
+  if ((i.cHigh || 0) >= 25 && f.path >= 0.5)
+    tips.push({ t: "High wisps catch it last", d: `High, wispy cirrus stays lit longest. Watch it turn pink and then violet well ${after}.` });
+  if (f.canvas < 0.3 && f.path >= 0.7 && f.overcast >= 0.9)
+    tips.push({ t: "Belt of Venus", d: `With a clear sky, turn round and look ${opposite} just ${after}: a pink band sits above the blue-grey shadow of the Earth.` });
+  if (((i.low || 0) >= 20 && (i.low || 0) <= 70) || ((i.pathLow || 0) >= 20 && (i.pathLow || 0) <= 60))
+    tips.push({ t: "Sunbeams", d: `Broken low cloud can split the light into rays (crepuscular rays) fanning out from the ${towards} horizon.` });
+  if ((i.rainP || 0) >= 30 && f.path >= 0.5)
+    tips.push({ t: "Rainbow chance", d: `Showers about with a low sun: turn your back to the sun and look ${opposite} for a rainbow.` });
+  if (i.visKm != null && i.visKm < 12)
+    tips.push({ t: "Red sun disc", d: `Hazy air dims the colours but turns the sun itself deep red near the horizon. A zoom lens makes the most of it.` });
+  if (f.path < 0.4)
+    tips.push({ t: "Watch for a gap", d: `Cloud on the ${towards} horizon may block the sun. If a gap opens, it can flare up for a few minutes, so keep an eye on it.` });
+  if (!tips.length)
+    tips.push({ t: "Simple and clean", d: `Expect a clean glow on the ${towards} horizon. Good for silhouettes: put something interesting against the bright sky.` });
+  return tips.slice(0, 4);
+}

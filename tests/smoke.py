@@ -116,6 +116,7 @@ def main():
         days = pg.query_selector_all(".day")
         check(len(days) >= 6, f"week strip has {len(days)} days")
         check(pg.inner_text("#times").count(":") >= 3, "viewing times shown")
+        check(len(pg.query_selector_all(".tip")) >= 1, "look-for tips: " + " | ".join(t.inner_text().split("\n")[0] for t in pg.query_selector_all(".tip")))
         pg.wait_for_selector("#conf:not([hidden])", timeout=8000)
         check("confidence" in pg.inner_text("#conf"), "confidence pill: " + pg.inner_text("#conf"))
         pg.click("#conf"); pg.wait_for_timeout(300)

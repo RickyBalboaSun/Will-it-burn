@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v3.1
+- **What to look for**: tips matched to the forecast. Underlit clouds and when they peak, high wisps that stay lit longest, the Belt of Venus opposite the sun on clear evenings, sunbeams through broken cloud, rainbow chances with showers, a red sun disc in haze, and watching for a gap when the horizon is cloudy.
+
 ## 2026-11-07 – v3.0
 - **Sky preview**: the background is drawn from the forecast. Wispy high cloud near the top, rafts of mid-level cloud, dark low cloud, and a cloud bank on the horizon if the light path is blocked. Clouds glow pink and orange when the sun can reach them and stay grey when it can't, so you can read the forecast at a glance.
 

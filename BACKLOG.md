@@ -20,6 +20,7 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 13 | 24-hour clock, add to calendar, compass | Small things that make it feel finished |
 | 14 | Instant start (forecast cache), last updated + refresh | Speed and fewer API calls |
 | 15 | Sky preview drawn from the forecast | See the prediction before reading the number |
+| 16 | What to look for | Turns a score into something to go and see |
 
 ## Next (in order)
 | # | Feature | Why | Notes |
