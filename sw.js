@@ -2,7 +2,7 @@
 // Browsers that can't run module service workers get sw-classic.js (offline only).
 import * as M from "./js/model.js";
 
-const CACHE = "wib-shell-v3";
+const CACHE = "wib-shell-v4";
 const CONFIG_CACHE = "wib-config";
 const CONFIG_URL = "./__alert-config";
 const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/model.js", "manifest.webmanifest",

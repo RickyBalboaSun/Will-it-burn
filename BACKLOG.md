@@ -22,6 +22,9 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 15 | Sky preview drawn from the forecast | See the prediction before reading the number |
 | 16 | What to look for | Turns a score into something to go and see |
 | 17 | Background alerts (Android, installed app) | People act on a notification, not on an app they have to open |
+| 18 | Elevation + high-viewpoint caveat | Honest about a known weakness (H1) |
+| 19 | How it works explainer | For people you share it with |
+| 20 | Cloud timeline chart | Is it clearing or building at sunset? |
 
 ## Next (in order)
 | # | Feature | Why | Notes |

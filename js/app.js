@@ -250,6 +250,7 @@ function renderSelected() {
   renderConfidence();
   drawMap();
   renderElevation();
+  drawTimeline();
 
   // week strip
   const best = state.events.reduce((b, x, i) => (x.score > state.events[b].score ? i : b), 0);
@@ -299,6 +300,46 @@ function renderConfidence() {
       : c.level === "Medium" ? "The models partly disagree. Check again nearer the time."
       : "The models disagree a lot. Treat this score as a rough guess and check again later."}`;
 }
+/* ---------- cloud timeline chart ---------- */
+const SERIES = [
+  { key: "cloud_cover_mid", loc: [0, 1], label: "Mid cloud overhead", col: "#ff9a7a" },
+  { key: "cloud_cover_high", loc: [0, 1], label: "High cloud overhead", col: "#ffd9a8" },
+  { key: "cloud_cover_low", loc: [0], label: "Low cloud overhead", col: "#9aa0b4" },
+  { key: "cloud_cover_low", loc: [2, 3, 4], label: "Low cloud on light path", col: "#7ee0c8", dash: [5, 4] },
+];
+function drawTimeline() {
+  const cv = $("timeline"), d = state.data, e = state.events[state.sel];
+  if (!cv || !d || !e || !$("details").open) return;
+  const dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const before = d.kind === "sunset" ? 4 : 2, afterH = d.kind === "sunset" ? 2 : 4;
+  const t0 = e.t - before * 3600, t1 = e.t + afterH * 3600, padL = 30, padR = 8, padT = 8, padB = 22;
+  const x = t => padL + (t - t0) / (t1 - t0) * (W - padL - padR), y = v => padT + (1 - v / 100) * (H - padT - padB);
+  g.strokeStyle = "rgba(255,255,255,0.15)"; g.fillStyle = "rgba(255,255,255,0.6)"; g.font = "11px Inter, system-ui, sans-serif"; g.lineWidth = 1;
+  for (const v of [0, 50, 100]) { g.beginPath(); g.moveTo(padL, y(v)); g.lineTo(W - padR, y(v)); g.stroke(); g.fillText(v + "%", 0, y(v) + 4); }
+  for (let h = -before; h <= afterH; h++) {
+    if (h !== 0 && (h % 2 !== 0 || h === afterH)) continue;     // keep labels uncluttered and inside the chart
+    const tt = e.t + h * 3600, label = h === 0 ? (d.kind === "sunset" ? "sunset" : "sunrise") : clock(tt, d.offset);
+    g.fillText(label, Math.min(W - g.measureText(label).width, Math.max(padL, x(tt) - g.measureText(label).width / 2)), H - 6);
+  }
+  g.strokeStyle = "#ffcf6b"; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(x(e.t), padT); g.lineTo(x(e.t), H - padB); g.stroke(); g.setLineDash([]);
+  for (const s of SERIES) {
+    g.strokeStyle = s.col; g.lineWidth = 2.2; g.setLineDash(s.dash || []); g.beginPath();
+    let started = false;
+    for (let tt = t0; tt <= t1; tt += 900) {
+      const vals = s.loc.map(i => M.valueAt(d.locations[i], s.key, tt)).filter(v => v != null);
+      if (!vals.length) { started = false; continue; }
+      const v = vals.reduce((a, b) => a + b, 0) / vals.length;
+      if (!started) { g.moveTo(x(tt), y(v)); started = true; } else g.lineTo(x(tt), y(v));
+    }
+    g.stroke();
+  }
+  g.setLineDash([]);
+  $("tlLegend").innerHTML = SERIES.map(s => `<span><i style="background:${s.col}"></i>${s.label}</span>`).join("");
+}
+$("details").addEventListener("toggle", drawTimeline);
+
 function renderElevation() {
   const elev = state.data && state.data.locations[0].elevation;
   const el = $("elevWarn");

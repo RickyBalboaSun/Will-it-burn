@@ -1,5 +1,9 @@
 # App changelog
 
+## 2026-11-07 – v3.5
+- **Cloud through the evening**: a chart in "Why this score" showing how mid, high and low cloud overhead, and low cloud along the light path, are forecast to change from 4 hours before sunset to 2 hours after. You can see whether cloud is clearing or building at the key moment.
+- Cards now blur the sky behind them, so text is easier to read.
+
 ## 2026-11-07 – v3.4
 - **How it works**: a diagram and plain-English explanation of the score, for anyone you share the app with (link at the bottom of the page).
 - Accessibility: score changes are announced to screen readers; visible focus outlines for keyboard users.
