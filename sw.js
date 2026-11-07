@@ -1,7 +1,7 @@
 // Network-first service worker: always try for the latest app, fall back to the
 // cached copy when offline. Only same-origin app files are cached; forecast data
 // is cached by the app itself.
-const CACHE = "wib-shell-v1";
+const CACHE = "wib-shell-v2";
 const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/model.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/apple-touch-icon.png", "icons/favicon-32.png"];
 

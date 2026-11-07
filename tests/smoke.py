@@ -9,7 +9,7 @@ from urllib.parse import urlparse, parse_qs
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ap = argparse.ArgumentParser(); ap.add_argument("--shots", default=None); args = ap.parse_args()
+ap = argparse.ArgumentParser(); ap.add_argument("--shots", default=None); args, _ = ap.parse_known_args()
 
 NOW = int(time.time())
 OFFSET = -25200  # UTC-7
@@ -286,4 +286,5 @@ def main():
     sys.exit(1 if FAILS else 0)
 
 
-main()
+if __name__ == "__main__":
+    main()

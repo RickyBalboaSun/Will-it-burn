@@ -10,7 +10,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 a { color: inherit; }
 [hidden] { display: none !important; }
 /* sky layer: fixed behind everything, so it covers long pages and avoids iOS fixed-background bugs */
-.sky { position: fixed; inset: 0; z-index: -1; background: #1a1424; transition: opacity 1s ease; }
+.sky { position: fixed; inset: 0; z-index: -1; background: #1a1424; }
+.sky canvas { width: 100%; height: 100%; display: block; }
+.hero, .loc, .seg { text-shadow: 0 1px 12px rgba(0,0,0,0.35); }
 .wrap { max-width: 520px; margin: 0 auto; }
 
 /* header */

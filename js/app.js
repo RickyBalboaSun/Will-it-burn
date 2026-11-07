@@ -121,11 +121,79 @@ function show(which) {
 }
 function loading(text) { $("loadingText").textContent = text; show("loading"); }
 
-function paintSky(t) {
+function paintSky(t, e) {
   const top = mix("2b2d38", "2a1846", t), mid = mix("4b4e5c", "b8336a", t), low = mix("6e707b", "ff7a2f", t);
   $("sky").style.background = `linear-gradient(180deg, ${top} 0%, ${mid} 55%, ${low} 100%)`;
   document.querySelector('meta[name="theme-color"]').content = top;
+  lastSky = e || null;
+  drawSky();
 }
+
+/* ---------- sky preview: the forecast drawn as a sky ---------- */
+let lastSky = null;
+function rng(seed) { let x = Math.floor(seed) % 2147483647 || 1; return () => (x = x * 16807 % 2147483647) / 2147483647; }
+function drawSky() {
+  const cv = $("skyCanvas"), e = lastSky;
+  const dpr = Math.min(2, window.devicePixelRatio || 1), W = innerWidth, H = innerHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  if (!e) return;
+  const t = e.score / 100, f = e.factors, inp = e.inputs, rand = rng(e.t);
+  const horizon = H * 0.9;
+  const lit = Math.max(0, Math.min(1, f.path * (0.35 + 0.65 * t)));   // how strongly clouds catch colour
+  const top = mix("2b2d38", "2a1846", t), mid = mix("4b4e5c", "b8336a", t), low = mix("6e707b", "ff7a2f", t);
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, top); grad.addColorStop(0.6, mid); grad.addColorStop(1, low);
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  // glow of the sun on the horizon
+  const glow = g.createRadialGradient(W / 2, horizon, 0, W / 2, horizon, H * 0.55);
+  glow.addColorStop(0, `rgba(255,190,110,${0.15 + 0.45 * lit})`); glow.addColorStop(1, "rgba(255,190,110,0)");
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  // high cloud: thin wisps near the top
+  const nHigh = Math.round((inp.cHigh || 0) / 100 * 16);
+  for (let i = 0; i < nHigh; i++) {
+    const y = H * (0.04 + rand() * 0.3), x = rand() * W, w = W * (0.25 + rand() * 0.4), h = 3 + rand() * 6;
+    g.save(); g.translate(x, y); g.rotate((rand() - 0.5) * 0.25);
+    g.fillStyle = mix("9a9cab", "ffc2b0", lit); g.globalAlpha = 0.18 + 0.3 * rand();
+    g.beginPath(); g.ellipse(0, 0, w / 2, h, 0, 0, Math.PI * 2); g.fill(); g.restore();
+  }
+  // mid cloud: flattened rafts of cloudlets, lit from below (altocumulus-like)
+  const nMid = Math.round((inp.cMid || 0) / 100 * 20);
+  for (let i = 0; i < nMid; i++) {
+    const cx = rand() * W * 1.2 - W * 0.1, cy = H * (0.2 + rand() * 0.42), size = 10 + rand() * 16, n = 4 + Math.floor(rand() * 5);
+    for (let k = 0; k < n; k++) {
+      const px = cx + (k - n / 2) * size * 1.5 + (rand() - 0.5) * size, py = cy + (rand() - 0.5) * size * 0.6;
+      const rx = size * (1.2 + rand() * 0.9), ry = size * (0.38 + rand() * 0.22);
+      const cg = g.createLinearGradient(0, py - ry, 0, py + ry);
+      cg.addColorStop(0, mix("5e6070", "6b4a78", lit)); cg.addColorStop(0.55, mix("7a7c8a", "c45a7a", lit)); cg.addColorStop(1, mix("8d8f9c", "ff8a66", lit));
+      g.fillStyle = cg; g.globalAlpha = 0.5 + 0.2 * rand();
+      g.beginPath(); g.ellipse(px, py, rx, ry, (rand() - 0.5) * 0.15, 0, Math.PI * 2); g.fill();
+    }
+  }
+  // low cloud overhead: dark, unlit
+  const nLow = Math.round((inp.low || 0) / 100 * 14);
+  for (let i = 0; i < nLow; i++) {
+    const cx = rand() * W, cy = H * (0.55 + rand() * 0.3), r = 30 + rand() * 40;
+    g.fillStyle = "#3a3844"; g.globalAlpha = 0.55;
+    g.beginPath(); g.ellipse(cx, cy, r * 1.8, r * 0.7, 0, 0, Math.PI * 2); g.fill();
+  }
+  // cloud bank on the horizon if the light path is blocked
+  const bank = 1 - f.path;
+  if (bank > 0.05) {
+    g.globalAlpha = 0.85; g.fillStyle = "#34323d";
+    for (let x = -20; x < W + 40; x += 34) {
+      const r = 26 + rand() * 22;
+      g.beginPath(); g.arc(x, horizon - bank * 50 + rand() * 10, r, 0, Math.PI * 2); g.fill();
+    }
+    g.fillRect(0, horizon - bank * 50, W, H);
+  }
+  g.globalAlpha = 1;
+  // ground
+  g.fillStyle = "#14111b"; g.fillRect(0, horizon, W, H - horizon);
+  // gentle scrim so text stays readable
+  g.fillStyle = "rgba(10,8,16,0.18)"; g.fillRect(0, 0, W, H);
+}
+addEventListener("resize", () => { clearTimeout(drawSky.t); drawSky.t = setTimeout(drawSky, 150); });
 
 function renderPlace(place) {
   $("placeBtn").hidden = false;
@@ -159,7 +227,7 @@ function renderSelected() {
   const d = state.data, e = state.events[state.sel];
   if (!e) return;
   const kind = d.kind, off = d.offset;
-  paintSky(e.score / 100);
+  paintSky(e.score / 100, e);
   const word = kind === "sunset" ? "sunset" : "sunrise";
   $("when").textContent = `${dayName(e.t, off, kind)} · ${word} ${clock(e.t, off)}`;
   $("score").textContent = e.score;

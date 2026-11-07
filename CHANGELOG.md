@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v3.0
+- **Sky preview**: the background is drawn from the forecast. Wispy high cloud near the top, rafts of mid-level cloud, dark low cloud, and a cloud bank on the horizon if the light path is blocked. Clouds glow pink and orange when the sun can reach them and stay grey when it can't, so you can read the forecast at a glance.
+
 ## 2026-11-07 – v2.9
 - **Opens instantly**: a forecast less than 15 minutes old is shown straight away; an older one is shown while the new one loads.
 - **"Updated 5 min ago · Refresh"** under the score.
