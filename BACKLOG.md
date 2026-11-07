@@ -16,11 +16,11 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 9 | Saved spots | Compare your regular places at a glance |
 | 10 | Find a better spot nearby | The best sunset within a short drive |
 | 11 | Check a past date (and rate it) | Back-fill the log from old photos |
+| 12 | Share card | Tell friends "tonight's a 78" |
 
 ## Next (in order)
 | # | Feature | Why | Notes |
 |---|---|---|---|
-| 12 | Share card | Tell friends "tonight's a 78" | Web Share API, image drawn on canvas |
 
 ## Later / needs more than a static site
 - **Alerts** ("tonight looks great") – needs a server and push notifications.

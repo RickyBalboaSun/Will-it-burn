@@ -197,6 +197,30 @@ def main():
         check(pg.is_hidden("#logCard"), "deleting the only entry hides the log")
         ctx.close()
 
+        print("Share")
+        ctx, pg = new_page()
+        pg.add_init_script("""
+          navigator.canShare = () => true;
+          navigator.share = async (data) => {
+            const f = data.files && data.files[0];
+            window.__shared = { text: data.text, img: f ? await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); }) : null };
+          };""")
+        pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
+        pg.click("#shareBtn"); pg.wait_for_function("window.__shared", timeout=8000)
+        shared = pg.evaluate("window.__shared")
+        check(shared["img"] and shared["img"].startswith("data:image/png"), "share sends a picture")
+        check("/100" in shared["text"], "share text: " + shared["text"])
+        if args.shots:
+            import base64 as b64; open(f"{args.shots}/09-share.png", "wb").write(b64.b64decode(shared["img"].split(",")[1]))
+        ctx.close()
+        ctx, pg = new_page()
+        pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
+        ctx.grant_permissions(["clipboard-read", "clipboard-write"])
+        pg.evaluate("delete Navigator.prototype.share; delete Navigator.prototype.canShare")
+        pg.click("#shareBtn"); pg.wait_for_timeout(800)
+        check("Copied" in pg.inner_text("#shareMsg"), "without share support it copies the text instead")
+        ctx.close()
+
         print("Past date")
         ctx, pg = new_page()
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)

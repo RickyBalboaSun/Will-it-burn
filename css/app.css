@@ -150,3 +150,4 @@ details[open] summary::after { content: "Hide"; }
 /* past date */
 .past-bar { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; font-size: 14px; background: rgba(0,0,0,0.3); border-radius: 14px; padding: 8px 12px; }
 .past-bar .btn { flex: 0 0 auto; }
+.share { margin-top: 16px; }

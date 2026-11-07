@@ -598,6 +598,50 @@ function leavePast() {
 }
 $("pastBack").addEventListener("click", leavePast);
 
+
+/* ---------- share card ---------- */
+async function shareCard() {
+  const d = state.data, e = state.events[state.sel], p = state.place;
+  const W = 1080, H = 1350, c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d"), t = e.score / 100;
+  try { await document.fonts.ready; } catch { /* fonts optional */ }
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, mix("2b2d38", "2a1846", t)); grad.addColorStop(0.55, mix("4b4e5c", "b8336a", t)); grad.addColorStop(1, mix("6e707b", "ff7a2f", t));
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  // sun on the horizon
+  const glow = g.createRadialGradient(W / 2, H * 0.86, 10, W / 2, H * 0.86, 420);
+  glow.addColorStop(0, `rgba(255,200,120,${0.25 + 0.5 * t})`); glow.addColorStop(1, "rgba(255,200,120,0)");
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  g.fillStyle = mix("c9c6c0", "ffd27a", t); g.beginPath(); g.arc(W / 2, H * 0.86, 130, Math.PI, 0); g.fill();
+  g.fillStyle = "#1a1424"; g.fillRect(0, H * 0.86, W, H);
+  g.fillStyle = "#fff"; g.textAlign = "center";
+  const serif = '"Fraunces", Georgia, serif', sans = '"Inter", system-ui, sans-serif';
+  g.font = `700 52px ${serif}`; g.fillText("Will It Burn?", W / 2, 130);
+  g.globalAlpha = 0.85; g.font = `500 42px ${sans}`;
+  g.fillText(`${dayName(e.t, d.offset, d.kind)} · ${d.kind} ${clock(e.t, d.offset)}`, W / 2, 260);
+  g.globalAlpha = 1; g.font = `700 340px ${serif}`; g.fillText(String(e.score), W / 2, 620);
+  g.font = `500 76px ${serif}`; g.fillText(e.verdict, W / 2, 760);
+  g.globalAlpha = 0.85; g.font = `500 40px ${sans}`;
+  const place = (p.label || p.name).slice(0, 40);
+  g.fillText(place, W / 2, 860);
+  g.globalAlpha = 0.7; g.font = `400 30px ${sans}`;
+  g.fillText("rickybalboasun.github.io/Will-it-burn", W / 2, H - 60);
+  g.globalAlpha = 1;
+
+  const where = /^near /i.test(place) ? place.replace(/^near/i, "near") : `at ${place}`;
+  const text = `${dayName(e.t, d.offset, d.kind)}'s ${d.kind} ${where}: ${e.score}/100, ${e.verdict.toLowerCase().replace(/!$/, "")}${e.score >= 50 ? " 🔥" : ""}`;
+  const url = location.href.split("#")[0];
+  try {
+    const blob = await new Promise(r => c.toBlob(r, "image/png"));
+    const file = new File([blob], "will-it-burn.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text, title: "Will It Burn?" }); return; }
+    if (navigator.share) { await navigator.share({ text, url, title: "Will It Burn?" }); return; }
+  } catch (err) { if (err && err.name === "AbortError") return; }
+  copyText(`${text}\n${url}`, $("shareMsg"));
+}
+$("shareBtn").addEventListener("click", shareCard);
+
 /* ---------- flow ---------- */
 async function refresh() {
   const place = state.place;

@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v2.7
+- **Share this forecast**: makes a picture card (score, verdict, place, time) and opens your phone's share menu, ready for WhatsApp, Messages and so on. Phones without a share menu copy the text instead.
+
 ## 2026-11-07 – v2.6
 - **Check a past date**: pick any date since 2022 and see what the app would have predicted, using Open-Meteo's archived forecasts. You can rate it too, so old sunset photos can go into the log.
 
