@@ -60,6 +60,7 @@ const state = {
   sel: 0,
   models: null,      // multi-model forecast for confidence
   past: false,       // looking back at a past date
+  updatedAt: null,
 };
 
 /* ---------- data ---------- */
@@ -711,42 +712,62 @@ $("compassBtn").addEventListener("click", async () => {
 });
 
 /* ---------- flow ---------- */
-async function refresh() {
-  const place = state.place;
-  loading(state.kind === "sunset" ? "Checking the sky…" : "Checking the morning sky…");
+/* forecast cache: a few recent places, so the app opens instantly and works offline */
+const FRESH_MS = 15 * 60 * 1000;
+const cacheKey = (place, kind) => `${place.lat.toFixed(2)},${place.lon.toFixed(2)},${kind}`;
+function cacheGet(key) { return (store.get("wib-cache", []) || []).find(x => x.key === key) || null; }
+function cachePut(key, d) {
+  const list = (store.get("wib-cache", []) || []).filter(x => x.key !== key);
+  list.unshift({ key, at: Date.now(), d });
+  store.set("wib-cache", list.slice(0, 4));
+}
+const ago = ms => { const m = Math.round(ms / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+
+function showForecast(place, d, at, mode) {
+  const events = scoreEvents(d);
+  if (!events.length) throw new Error("no-event");
+  const keepSel = state.data && state.data.kind === d.kind && state.place === place && !state.past ? state.sel : 0;
+  state.data = d; state.events = events; state.sel = Math.min(keepSel, events.length - 1);
+  state.models = null; state.past = false; state.live = null; applyPastUi();
+  state.updatedAt = at;
+  renderPlace(place); renderSaveButton(); renderSelected(); renderRate(); renderLog(); show("result");
+  $("nearList").innerHTML = ""; $("nearStatus").textContent = ""; $("nearMap").hidden = true;
+  $("offline").hidden = mode !== "offline";
+  if (mode === "offline") $("offline").textContent = `Offline · forecast from ${ago(Date.now() - at)}`;
+  renderUpdated(mode === "updating");
+  if (mode !== "offline") loadModels(d).then(m => {
+    if (state.data !== d) return;
+    state.models = m; renderConfidence();
+  }).catch(() => { /* confidence is optional */ });
+}
+function renderUpdated(updating) {
+  $("updated").textContent = updating ? "Updating…" : state.updatedAt ? `Updated ${ago(Date.now() - state.updatedAt)}` : "";
+}
+setInterval(() => { if (state.updatedAt && !state.past) renderUpdated(false); }, 60000);
+
+async function refresh(force = false) {
+  const place = state.place, kind = state.kind, key = cacheKey(place, kind);
+  const cached = cacheGet(key);
+  const fresh = cached && Date.now() - cached.at < FRESH_MS;
   try {
-    let d, offlineAt = null;
-    const key = `${place.lat.toFixed(3)},${place.lon.toFixed(3)},${state.kind}`;
-    try {
-      d = await loadForecast(place, state.kind);
-      store.set("wib-last", { key, at: Date.now(), d });
-    } catch (err) {
-      const last = store.get("wib-last");
-      if (!last || last.key !== key) throw err;
-      d = last.d; offlineAt = last.at;
-    }
-    if (place !== state.place) return;
-    const events = scoreEvents(d);
-    if (!events.length) throw new Error("no-event");
-    state.data = d; state.events = events; state.sel = 0;
-    state.models = null; state.past = false; state.live = null; applyPastUi();
-    renderPlace(place); renderSaveButton(); renderSelected(); renderRate(); renderLog(); show("result");
-    $("nearList").innerHTML = ""; $("nearStatus").textContent = ""; $("nearMap").hidden = true;
-    if (!offlineAt) loadModels(d).then(m => {
-      if (state.data !== d) return;
-      state.models = m; renderConfidence();
-    }).catch(() => { /* confidence is optional */ });
-    $("offline").hidden = !offlineAt;
-    if (offlineAt) {
-      const t = new Date(offlineAt);
-      $("offline").textContent = `Offline · forecast from ${t.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
-    }
+    if (cached) showForecast(place, cached.d, cached.at, fresh && !force ? "fresh" : "updating");
+    else loading(kind === "sunset" ? "Checking the sky…" : "Checking the morning sky…");
+  } catch { /* cached data had no upcoming events; fetch instead */ }
+  if (fresh && !force) return;
+  try {
+    const d = await loadForecast(place, kind);
+    if (place !== state.place || kind !== state.kind) return;
+    cachePut(key, d);
+    showForecast(place, d, Date.now(), "live");
   } catch (e) {
-    openPicker(e.message === "no-event"
-      ? `There's no ${state.kind} here in the next week. Try another place.`
+    if (place !== state.place || kind !== state.kind) return;
+    if (cached) { try { showForecast(place, cached.d, cached.at, "offline"); return; } catch { /* fall through */ } }
+    openPicker(e.message === "no-event" ? `There's no ${kind} here in the next week. Try another place.`
+      : /429/.test(e.message) ? "The forecast service is busy right now. Try again in a minute."
       : "Couldn't get the forecast. Check your connection, or try another place.");
   }
 }
+$("refreshBtn").addEventListener("click", () => { if (!state.past) refresh(true); });
 
 async function run(place) {
   state.place = place;
@@ -814,6 +835,7 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 }
 $("modelVersion").textContent = M.MODEL_VERSION;
+try { localStorage.removeItem("wib-last"); } catch { /* old cache format */ }
 setKindButtons();
 const saved = store.get("wib-place");
 if (saved && !saved.gps && saved.lat != null) run(saved); else locate();
