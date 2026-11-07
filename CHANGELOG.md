@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v3.6
+- Nearby scan results now show real place names ("25 km north-west · near Panguitch").
+
 ## 2026-11-07 – v3.5
 - **Cloud through the evening**: a chart in "Why this score" showing how mid, high and low cloud overhead, and low cloud along the light path, are forecast to change from 4 hours before sunset to 2 hours after. You can see whether cloud is clearing or building at the key moment.
 - Cards now blur the sky behind them, so text is easier to read.

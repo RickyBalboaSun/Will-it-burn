@@ -177,10 +177,13 @@ def main():
         check(pg.inner_text("#nearStatus") != "", "scan verdict: " + pg.inner_text("#nearStatus"))
         check(len(pg.query_selector_all("#nearMap path.leaflet-interactive")) == 17, "17 places on the scan map")
         pg.eval_on_selector("#nearCard", "e => e.scrollIntoView()"); shot(pg, "06-nearby")
+        pg.wait_for_function("document.querySelector('.near-item[data-place]')", timeout=5000)
+        check("near Bryce Canyon City" in pg.inner_text("#nearList"), "nearby places get real names")
         target = [b for b in pg.query_selector_all(".near-item") if b.get_attribute("data-name") != "Here"][0]
         tname = target.get_attribute("data-name")
         target.click(); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
-        check(tname in pg.inner_text("#locName"), f"tapping a nearby place switches to it ({tname})")
+        check("Near Bryce Canyon City" == pg.inner_text("#locName") and tname in pg.inner_text("#locSub"), f"tapping a nearby place switches to it ({tname})")
+        tname = "Near Bryce Canyon City"
         pg.click("#saveSpot"); check("Saved" in pg.inner_text("#saveSpot"), "spot saved")
         pg.click("#placeBtn"); pg.wait_for_selector("#spots:not([hidden])")
         pg.wait_for_function("document.querySelector('#spotScore0') && /\\d/.test(document.querySelector('#spotScore0').textContent)", timeout=8000)

@@ -634,14 +634,32 @@ $("scanBtn").addEventListener("click", async () => {
         <span class="ns" style="color:${scoreColour(x.score)}">${x.score}</span>
       </button>`).join("") + `<div class="note">This only knows about the sky. Check the spot has an open view ${M.compass(d.az)}, with no hills, trees or buildings in the way.</div>`;
     drawNearMap(scored, p);
+    nameNearby(scored.slice(0, 6).filter(x => x.dist));
   } catch {
     $("nearStatus").textContent = "Couldn't scan right now. Try again in a minute.";
   } finally { $("scanBtn").disabled = false; }
 });
+async function reverseName(lat, lon) {
+  const d = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, 8000);
+  return d.locality || d.city || null;
+}
+async function nameNearby(list) {
+  await Promise.all(list.map(async x => {
+    try {
+      const name = await reverseName(x.lat, x.lon);
+      const btn = document.querySelector(`.near-item[data-lat="${x.lat}"][data-lon="${x.lon}"]`);
+      if (!name || !btn) return;
+      btn.dataset.place = name;
+      btn.querySelector("span").firstChild.textContent = `${x.dist} km ${x.dir} · near ${name}`;
+    } catch { /* keep the distance-only label */ }
+  }));
+}
 $("nearList").addEventListener("click", ev => {
   const b = ev.target.closest(".near-item"); if (!b || b.dataset.name === "Here") return;
   const base = state.place.label || state.place.name;
-  run({ name: `${b.dataset.name} of ${base}`, label: `${b.dataset.name} of ${base}`, detail: "", lat: Number(b.dataset.lat), lon: Number(b.dataset.lon) });
+  const label = b.dataset.place ? `Near ${b.dataset.place}` : `${b.dataset.name} of ${base}`;
+  const detail = b.dataset.place ? `${b.dataset.name} of ${base.replace(/^Near /, "")}` : "";
+  run({ name: label, label, detail, lat: Number(b.dataset.lat), lon: Number(b.dataset.lon) });
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 async function drawNearMap(scored, p) {
