@@ -74,6 +74,7 @@ def serve():
 
 import base64
 TILE = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk2PS/HgAFJQJVOyJ0rAAAAABJRU5ErkJggg==")
+LEAFLET = os.environ.get("LEAFLET_DIST", "/tmp/leaflet/package/dist")
 FAILS = []
 def check(cond, msg):
     print(("  ok   " if cond else "  FAIL ") + msg)
@@ -83,7 +84,8 @@ def check(cond, msg):
 def main():
     httpd = serve(); base = f"http://127.0.0.1:{httpd.server_address[1]}/"
     with sync_playwright() as p:
-        b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
+        chrome = os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")
+        b = p.chromium.launch(executable_path=chrome if os.path.exists(chrome) else None, args=["--no-sandbox"])
         errors = []
 
         def new_page(geo=True):
@@ -94,7 +96,7 @@ def main():
             ctx.route("**/fonts.googleapis.com/**", lambda r: r.fulfill(status=200, body="", content_type="text/css"))
             ctx.route("**/fonts.gstatic.com/**", lambda r: r.abort())
             ctx.route("**/cdnjs.cloudflare.com/ajax/libs/leaflet/**", lambda r: r.fulfill(status=200,
-                path="/tmp/leaflet/package/dist/leaflet.css" if r.request.url.endswith(".css") else "/tmp/leaflet/package/dist/leaflet.js",
+                path=f"{LEAFLET}/leaflet.css" if r.request.url.endswith(".css") else f"{LEAFLET}/leaflet.js",
                 content_type="text/css" if r.request.url.endswith(".css") else "application/javascript"))
             ctx.route("**/*basemaps.cartocdn.com/**", lambda r: r.fulfill(status=200, body=TILE, content_type="image/png"))
             pg = ctx.new_page()
