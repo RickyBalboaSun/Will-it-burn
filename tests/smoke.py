@@ -87,7 +87,7 @@ def main():
         errors = []
 
         def new_page(geo=True):
-            kw = dict(viewport={"width": 390, "height": 844}, device_scale_factor=2)
+            kw = dict(viewport={"width": 390, "height": 844}, device_scale_factor=2, accept_downloads=True, locale="en-GB")
             if geo: kw.update(geolocation={"latitude": 37.6097, "longitude": -112.1617, "accuracy": 12}, permissions=["geolocation"])
             ctx = b.new_context(**kw)
             ctx.route("**/*open-meteo.com/**", handle); ctx.route("**/*bigdatacloud.net/**", handle)
@@ -129,6 +129,27 @@ def main():
         sel = pg.query_selector_all(".day")[2]
         check("on" in (sel.get_attribute("class") or ""), "selected day highlighted")
         check(pg.inner_text("#score") == sel.query_selector(".s").inner_text(), "hero shows the selected day's score")
+        print("Calendar + compass")
+        with pg.expect_download() as dl: pg.click("#calBtn")
+        ics = open(dl.value.path()).read()
+        check("BEGIN:VEVENT" in ics and "DTSTART:" in ics and "/100" in ics, "calendar file has the event")
+        pg.context.grant_permissions(["accelerometer", "gyroscope", "magnetometer"])
+        pg.click("#compassBtn"); pg.wait_for_timeout(100)
+        check(not pg.is_hidden("#compassBox"), "compass shows" + ("" if not pg.is_hidden("#compassBox") else " | btn=" + pg.inner_text("#compassBtn") + " msg=" + pg.inner_text("#timesMsg")))
+        pg.evaluate("""() => { const e = new Event('deviceorientationabsolute'); Object.assign(e, { absolute: true, alpha: 90 });
+                         window.dispatchEvent(e); const f = new Event('deviceorientation'); Object.assign(f, { absolute: true, alpha: 90 }); window.dispatchEvent(f); }""")
+        pg.wait_for_timeout(400)
+        ang = pg.evaluate("getComputedStyle(document.getElementById('needle')).transform")
+        txt = pg.inner_text("#compassText")
+        import math
+        try:
+            a, bb = [float(x) for x in ang.split("(")[1].split(",")[:2]]; deg = math.degrees(math.atan2(bb, a))
+        except Exception: deg = 999
+        check(abs(deg - (-22)) < 3, f"needle points the way to turn ({deg:.0f}°)")
+        check("Turn" in txt or "That way" in txt, "compass reacts to heading: " + txt)
+        pg.eval_on_selector("#compassBox", "e => e.scrollIntoView({block:'center'})"); shot(pg, "10-compass")
+        pg.click("#compassBtn")
+
         print("Nearby scan + saved spots")
         pg.click("#nearCard summary"); pg.click(".radius[data-r='50']"); pg.click("#scanBtn")
         pg.wait_for_selector(".near-item", timeout=10000); pg.wait_for_timeout(500)

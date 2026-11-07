@@ -26,11 +26,14 @@ const scoreColour = s => mix("6e707b", "ff7a2f", Math.min(1, s / 85));
 
 /* ---------- time formatting (in the place's own time zone) ---------- */
 const localDate = (unix, off) => new Date((unix + off) * 1000);
+// Follow the phone's own 12/24-hour setting; times are shown in the place's time zone.
+const CLOCK_FMT = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+const USES_12H = CLOCK_FMT.resolvedOptions().hour12 !== false && CLOCK_FMT.resolvedOptions().hourCycle !== "h23";
 function clock(unix, off) {
   const d = localDate(unix, off);
-  let h = d.getUTCHours(); const m = String(d.getUTCMinutes()).padStart(2, "0");
-  const ap = h >= 12 ? "pm" : "am"; h = h % 12 || 12;
-  return `${h}:${m}${ap}`;
+  const h = d.getUTCHours(), m = String(d.getUTCMinutes()).padStart(2, "0");
+  if (!USES_12H) return `${String(h).padStart(2, "0")}:${m}`;
+  return `${h % 12 || 12}:${m}${h >= 12 ? "pm" : "am"}`;
 }
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -641,6 +644,71 @@ async function shareCard() {
   copyText(`${text}\n${url}`, $("shareMsg"));
 }
 $("shareBtn").addEventListener("click", shareCard);
+
+
+/* ---------- add to calendar ---------- */
+function icsDate(unix) { return new Date(unix * 1000).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); }
+$("calBtn").addEventListener("click", () => {
+  const d = state.data, e = state.events[state.sel], p = state.place;
+  const v = M.viewingTimes(p.lat, p.lon, e.t, d.kind);
+  const start = d.kind === "sunset" ? (v.golden || e.t - 3600) : (v.civil || e.t - 1800);
+  const end = d.kind === "sunset" ? (v.civil || e.t + 1800) : (v.golden || e.t + 1800);
+  const word = d.kind === "sunset" ? "Sunset" : "Sunrise";
+  const lines = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Will It Burn//EN", "BEGIN:VEVENT",
+    `UID:${entryId(d.kind, e.t, d.offset, p)}@will-it-burn`, `DTSTAMP:${icsDate(Date.now() / 1000)}`,
+    `DTSTART:${icsDate(start)}`, `DTEND:${icsDate(end)}`,
+    `SUMMARY:${word} ${e.score}/100 – ${e.verdict.replace(/[,;]/g, "")}`,
+    `LOCATION:${(p.label || p.name).replace(/[,;]/g, " ")}`, `GEO:${p.lat.toFixed(4)};${p.lon.toFixed(4)}`,
+    `DESCRIPTION:${word} at ${clock(e.t, d.offset)}. Face ${M.compass(d.az)}. Forecast score ${e.score}/100 – check again nearer the time: ${location.href.split("#")[0]}`,
+    "BEGIN:VALARM", "TRIGGER:-PT30M", "ACTION:DISPLAY", `DESCRIPTION:${word} soon`, "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR",
+  ];
+  const blob = new Blob([lines.join("\r\n")], { type: "text/calendar" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `${word.toLowerCase()}-${isoDay(e.t, d.offset)}.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  $("timesMsg").textContent = "Calendar file downloaded. Open it to add the event, with a reminder 30 minutes before.";
+});
+
+/* ---------- which way? compass ---------- */
+let compassOn = false, needleAngle = 0;
+function setNeedle(a) { // rotate the short way round, so the arrow never spins through 360°
+  needleAngle += ((a - needleAngle) % 360 + 540) % 360 - 180;
+  $("needle").style.transform = `rotate(${needleAngle}deg)`;
+}
+function onHeading(ev) {
+  let heading = null;
+  if (typeof ev.webkitCompassHeading === "number") heading = ev.webkitCompassHeading;     // iOS
+  else if (ev.absolute && ev.alpha != null) heading = (360 - ev.alpha) % 360;              // Android
+  if (heading == null) return;
+  const target = state.data.az, turn = ((target - heading + 540) % 360) - 180;
+  setNeedle(turn);
+  $("compassText").innerHTML = Math.abs(turn) < 10
+    ? `<b>That way!</b> The sun ${state.data.kind === "sunset" ? "sets" : "rises"} straight ahead (${Math.round(target)}°).`
+    : `Turn ${turn > 0 ? "right" : "left"} ${Math.round(Math.abs(turn))}° to face the ${state.data.kind}.`;
+}
+$("compassBtn").addEventListener("click", async () => {
+  if (compassOn) {
+    compassOn = false; $("compassBox").hidden = true; $("compassBtn").textContent = "Which way?";
+    window.removeEventListener("deviceorientationabsolute", onHeading); window.removeEventListener("deviceorientation", onHeading);
+    return;
+  }
+  try {
+    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      if (await DeviceOrientationEvent.requestPermission() !== "granted") throw new Error("denied");
+    }
+  } catch {
+    $("timesMsg").textContent = `Compass access wasn't allowed. Face ${M.compass(state.data.az)} (${Math.round(state.data.az)}° on a compass).`;
+    return;
+  }
+  compassOn = true; $("compassBox").hidden = false; $("compassBtn").textContent = "Hide compass";
+  setNeedle(state.data.az);
+  $("compassText").textContent = `Hold your phone flat. The arrow points ${M.compass(state.data.az)} (${Math.round(state.data.az)}°), where the sun ${state.data.kind === "sunset" ? "sets" : "rises"}.`;
+  if ("ondeviceorientationabsolute" in window) window.addEventListener("deviceorientationabsolute", onHeading);
+  else window.addEventListener("deviceorientation", onHeading);
+});
 
 /* ---------- flow ---------- */
 async function refresh() {

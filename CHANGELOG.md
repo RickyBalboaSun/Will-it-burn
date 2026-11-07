@@ -1,5 +1,10 @@
 # App changelog
 
+## 2026-11-07 – v2.8
+- **Times follow your phone's clock setting**: 24-hour (17:20) or 12-hour (5:20pm).
+- **Add to calendar**: saves the viewing window (golden hour to afterglow) as a calendar event, with the score and a reminder 30 minutes before.
+- **Which way?**: a live compass arrow pointing to where the sun will set or rise, using your phone's compass.
+
 ## 2026-11-07 – v2.7
 - **Share this forecast**: makes a picture card (score, verdict, place, time) and opens your phone's share menu, ready for WhatsApp, Messages and so on. Phones without a share menu copy the text instead.
 

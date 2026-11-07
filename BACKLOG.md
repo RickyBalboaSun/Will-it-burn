@@ -17,6 +17,7 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 10 | Find a better spot nearby | The best sunset within a short drive |
 | 11 | Check a past date (and rate it) | Back-fill the log from old photos |
 | 12 | Share card | Tell friends "tonight's a 78" |
+| 13 | 24-hour clock, add to calendar, compass | Small things that make it feel finished |
 
 ## Next (in order)
 | # | Feature | Why | Notes |
