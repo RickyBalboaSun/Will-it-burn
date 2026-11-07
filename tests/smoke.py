@@ -1,0 +1,141 @@
+"""Browser smoke tests with mocked APIs and a simulated phone.
+
+Usage:  python3 tests/smoke.py [--shots DIR]
+Serves the repo over HTTP, mocks Open-Meteo / geocoding / reverse geocoding,
+and drives the app in headless Chrome. Exits non-zero on any failure.
+"""
+import json, os, sys, threading, time, functools, http.server, socketserver, argparse
+from urllib.parse import urlparse, parse_qs
+from playwright.sync_api import sync_playwright
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ap = argparse.ArgumentParser(); ap.add_argument("--shots", default=None); args = ap.parse_args()
+
+NOW = int(time.time())
+OFFSET = -25200  # UTC-7
+LOCAL_MIDNIGHT = (NOW + OFFSET) // 86400 * 86400 - OFFSET
+DAILY_MID = [55, 10, 80, 30, 0, 60, 45, 20]
+
+
+def forecast_body(qs):
+    lats = qs["latitude"][0].split(",")
+    days = int(qs.get("forecast_days", ["8"])[0])
+    start = LOCAL_MIDNIGHT
+    if "start_date" in qs:  # past date: use that day
+        y, m, d = map(int, qs["start_date"][0].split("-"))
+        start = int(time.mktime((y, m, d, 0, 0, 0, 0, 0, 0))) - time.timezone - OFFSET
+        days = 2
+    hours = days * 24
+    times = [start + h * 3600 for h in range(hours)]
+    sunsets = [start + d * 86400 + 17 * 3600 + 20 * 60 for d in range(days)]
+    sunrises = [start + d * 86400 + 7 * 3600 for d in range(days)]
+    models = qs.get("models", [""])[0]
+    out = []
+    for i, _ in enumerate(lats):
+        far = i >= 2
+        mid = [DAILY_MID[(h // 24) % 8] if not far else 5 for h in range(hours)]
+        base = {"cloud_cover": [min(100, m + 10) for m in mid], "cloud_cover_low": [0] * hours,
+                "cloud_cover_mid": mid, "cloud_cover_high": [10] * hours, "visibility": [40000] * hours,
+                "relative_humidity_2m": [60] * hours, "precipitation_probability": [0] * hours, "precipitation": [0.0] * hours}
+        hourly = {"time": times}
+        if models:
+            for k, (mname) in enumerate(models.split(",")):
+                for var, vals in base.items():
+                    hourly[f"{var}_{mname}"] = [min(100, v + 15 * k) if var == "cloud_cover_mid" else v for v in vals]
+        else:
+            hourly.update(base)
+        out.append({"utc_offset_seconds": OFFSET, "hourly": hourly, "daily": {"time": [], "sunset": sunsets, "sunrise": sunrises}})
+    return out if len(out) > 1 else out[0]
+
+
+def handle(route):
+    u = urlparse(route.request.url); qs = parse_qs(u.query)
+    if "bigdatacloud" in u.netloc:
+        body = {"locality": "Bryce Canyon City", "city": "Bryce Canyon City", "principalSubdivision": "Utah", "countryName": "United States of America (the)"}
+    elif "geocoding" in u.netloc:
+        body = {"results": [{"name": "Mumbles", "latitude": 51.57, "longitude": -4.0, "admin1": "Wales", "country": "United Kingdom"}]}
+    else:
+        body = forecast_body(qs)
+    route.fulfill(status=200, content_type="application/json", headers={"Access-Control-Allow-Origin": "*"}, body=json.dumps(body))
+
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *a): pass
+
+
+def serve():
+    socketserver.TCPServer.allow_reuse_address = True
+    httpd = socketserver.TCPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=ROOT))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd
+
+
+FAILS = []
+def check(cond, msg):
+    print(("  ok   " if cond else "  FAIL ") + msg)
+    if not cond: FAILS.append(msg)
+
+
+def main():
+    httpd = serve(); base = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    with sync_playwright() as p:
+        b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
+        errors = []
+
+        def new_page(geo=True):
+            kw = dict(viewport={"width": 390, "height": 844}, device_scale_factor=2)
+            if geo: kw.update(geolocation={"latitude": 37.6097, "longitude": -112.1617, "accuracy": 12}, permissions=["geolocation"])
+            ctx = b.new_context(**kw)
+            ctx.route("**/*open-meteo.com/**", handle); ctx.route("**/*bigdatacloud.net/**", handle)
+            ctx.route("**/fonts.googleapis.com/**", lambda r: r.fulfill(status=200, body="", content_type="text/css"))
+            ctx.route("**/fonts.gstatic.com/**", lambda r: r.abort())
+            pg = ctx.new_page()
+            pg.on("pageerror", lambda e: errors.append(str(e)))
+            pg.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and errors.append(m.text))
+            return ctx, pg
+
+        def shot(pg, name, full=False):
+            if args.shots:
+                os.makedirs(args.shots, exist_ok=True); pg.screenshot(path=f"{args.shots}/{name}.png", full_page=full)
+
+        print("GPS flow")
+        ctx, pg = new_page()
+        pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000); pg.wait_for_timeout(800)
+        check(pg.inner_text("#locName") == "Near Bryce Canyon City", "reverse-geocoded place name")
+        check(pg.inner_text("#score").isdigit(), "score shown")
+        days = pg.query_selector_all(".day")
+        check(len(days) >= 6, f"week strip has {len(days)} days")
+        check(pg.inner_text("#times").count(":") >= 3, "viewing times shown")
+        shot(pg, "01-home"); shot(pg, "01-home-full", True)
+        first = pg.inner_text("#score")
+        days[2].click(); pg.wait_for_timeout(200)
+        sel = pg.query_selector_all(".day")[2]
+        check("on" in (sel.get_attribute("class") or ""), "selected day highlighted")
+        check(pg.inner_text("#score") == sel.query_selector(".s").inner_text(), "hero shows the selected day's score")
+        pg.click("#kindSunrise"); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
+        check("sunrise" in pg.inner_text("#when").lower(), "sunrise mode")
+        shot(pg, "02-sunrise", True)
+        pg.click("#kindSunset"); pg.wait_for_selector("#result:not([hidden])")
+        extra = os.environ.get("SMOKE_EXTRA")
+        if extra:
+            exec(open(extra).read(), {"pg": pg, "check": check, "shot": shot, "base": base, "new_page": new_page})
+        ctx.close()
+
+        print("Search flow (GPS denied)")
+        ctx, pg = new_page(geo=False)
+        pg.goto(base); pg.wait_for_selector("#picker:not([hidden])", timeout=20000)
+        pg.fill("#q", "Mumbles"); pg.click("button[type=submit]"); pg.wait_for_selector(".results button")
+        pg.click(".results button"); pg.wait_for_selector("#result:not([hidden])")
+        check(pg.inner_text("#locName") == "Mumbles", "searched place shown")
+        pg.reload(); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
+        check(pg.inner_text("#locName") == "Mumbles", "searched place remembered after reload")
+        ctx.close()
+
+        check(not errors, "no page errors" + (f": {errors[:3]}" if errors else ""))
+        b.close()
+    httpd.shutdown()
+    print("PASS" if not FAILS else f"FAILED: {len(FAILS)}")
+    sys.exit(1 if FAILS else 0)
+
+
+main()

@@ -4,109 +4,34 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1a1424">
+<meta name="description" content="Will tonight's sunset be worth watching? A 0–100 score from cloud, haze and the light path to the horizon.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Will It Burn?">
 <title>Will It Burn?</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; }
-  body {
-    font-family: Inter, system-ui, sans-serif; color: #fff; background: #1a1424;
-    min-height: 100dvh; display: flex; flex-direction: column;
-    transition: background 1.2s ease;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
-  }
-  .top { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 0; }
-  .brand { font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 18px; opacity: 0.9; }
-  .place {
-    font: inherit; font-size: 14px; color: #fff; background: rgba(255,255,255,0.14);
-    border: 0; border-radius: 999px; padding: 8px 14px; min-height: 36px; cursor: pointer; max-width: 60%;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-
-  .hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px 24px 8px; }
-  .when { font-size: 15px; opacity: 0.85; letter-spacing: 0.02em; }
-  .loc { background: rgba(0,0,0,0.2); border-radius: 14px; padding: 10px 16px; margin-bottom: 18px; max-width: 360px; }
-  .loc-name { font-size: 17px; font-weight: 600; }
-  .loc-sub { font-size: 13px; opacity: 0.8; margin-top: 3px; line-height: 1.5; }
-  .loc-sub a { color: #fff; }
-  .loc-warn { font-size: 13px; color: #ffd2c4; margin-top: 4px; }
-  .score { font-family: Fraunces, Georgia, serif; font-weight: 700; font-size: 132px; line-height: 1; letter-spacing: -4px; margin: 10px 0 0; text-shadow: 0 4px 30px rgba(0,0,0,0.25); }
-  .score small { font-size: 30px; font-weight: 500; letter-spacing: 0; opacity: 0.7; }
-  .verdict { font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: 28px; margin-top: 8px; }
-  .countdown { font-size: 15px; opacity: 0.85; margin-top: 10px; }
-  .reasons { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 8px; font-size: 15px; }
-  .reasons li { background: rgba(0,0,0,0.18); border-radius: 12px; padding: 10px 14px; }
-
-  .status { font-size: 16px; opacity: 0.9; max-width: 320px; line-height: 1.5; }
-  .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.25); border-top-color: #fff; animation: spin 0.9s linear infinite; margin: 0 auto 16px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .search { width: 100%; max-width: 360px; margin-top: 20px; display: grid; gap: 10px; }
-  .search input {
-    width: 100%; font: inherit; font-size: 17px; color: #1a1424; background: #fff; border: 0;
-    border-radius: 14px; padding: 14px 16px; min-height: 50px;
-  }
-  .btn {
-    font: inherit; font-weight: 600; font-size: 16px; min-height: 50px; border-radius: 14px; cursor: pointer;
-    border: 0; background: #fff; color: #1a1424; padding: 0 18px;
-  }
-  .btn.ghost { background: rgba(255,255,255,0.14); color: #fff; }
-  .results { display: grid; gap: 6px; text-align: left; }
-  .results button {
-    font: inherit; font-size: 15px; text-align: left; color: #fff; background: rgba(0,0,0,0.22);
-    border: 0; border-radius: 12px; padding: 12px 14px; cursor: pointer; min-height: 44px;
-  }
-  .results small { opacity: 0.7; }
-  .err { color: #ffd2c4; font-size: 14px; }
-
-  details { margin: 0 16px 16px; background: rgba(0,0,0,0.22); border-radius: 16px; }
-  summary { list-style: none; cursor: pointer; padding: 14px 18px; font-size: 14px; font-weight: 500; opacity: 0.9; display: flex; justify-content: space-between; }
-  summary::-webkit-details-marker { display: none; }
-  summary::after { content: "Show"; opacity: 0.7; font-weight: 400; }
-  details[open] summary::after { content: "Hide"; }
-  .detail-body { padding: 0 18px 16px; display: grid; gap: 10px; font-size: 14px; }
-  .f-row { display: grid; grid-template-columns: 120px 1fr 40px; gap: 10px; align-items: center; }
-  .f-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,0.18); overflow: hidden; }
-  .f-fill { height: 100%; background: #fff; border-radius: 4px; }
-  .f-num { text-align: right; opacity: 0.8; font-variant-numeric: tabular-nums; }
-  .raw { opacity: 0.75; line-height: 1.6; margin-top: 4px; }
-  .foot { text-align: center; font-size: 11.5px; opacity: 0.55; padding: 0 20px 14px; }
-  .foot a { color: inherit; }
-  [hidden] { display: none !important; }
-</style>
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+<div class="sky" id="sky"></div>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Will It Burn?</div>
+    <div class="top-actions">
+      <button class="pill" id="placeBtn" hidden>Change place</button>
+    </div>
+  </header>
 
-<div class="top">
-  <div class="brand">Will It Burn?</div>
-  <button class="place" id="placeBtn" hidden></button>
-</div>
-
-<main class="hero" id="hero">
-  <div id="loading">
+  <!-- loading -->
+  <section class="center" id="loading">
     <div class="spinner"></div>
     <div class="status" id="loadingText">Finding your location…</div>
-  </div>
+  </section>
 
-  <div id="result" hidden>
-    <div class="loc" id="loc">
-      <div class="loc-name" id="locName"></div>
-      <div class="loc-sub" id="locSub"></div>
-      <div class="loc-warn" id="locWarn" hidden></div>
-    </div>
-    <div class="when" id="when"></div>
-    <div class="score"><span id="score"></span><small>/100</small></div>
-    <div class="verdict" id="verdict"></div>
-    <div class="countdown" id="countdown"></div>
-    <ul class="reasons" id="reasons"></ul>
-  </div>
-
-  <div id="picker" hidden>
-    <div class="status" id="pickerText">Where are you watching the sunset?</div>
+  <!-- place picker -->
+  <section class="center" id="picker" hidden>
+    <div class="status" id="pickerText">Where are you watching from?</div>
     <form class="search" id="searchForm">
       <input id="q" type="search" placeholder="Town or place" autocomplete="off" enterkeyhint="search">
       <button class="btn" type="submit">Search</button>
@@ -114,276 +39,51 @@
       <div class="err" id="searchErr" hidden></div>
       <div class="results" id="results"></div>
     </form>
-  </div>
-</main>
+  </section>
 
-<details id="details" hidden>
-  <summary>Why this score</summary>
-  <div class="detail-body" id="detailBody"></div>
-</details>
+  <!-- result -->
+  <main id="result" hidden>
+    <div class="seg" role="tablist" aria-label="Sunset or sunrise">
+      <button id="kindSunset" class="on" role="tab">Sunset</button>
+      <button id="kindSunrise" role="tab">Sunrise</button>
+    </div>
 
-<div class="foot">Forecast by <a href="https://open-meteo.com">Open-Meteo</a></div>
+    <div class="loc" id="loc">
+      <div class="loc-name" id="locName"></div>
+      <div class="loc-sub" id="locSub"></div>
+      <div class="loc-warn" id="locWarn" hidden></div>
+    </div>
 
-<script>
-/* ---------- scoring (mirrors logic.py) ---------- */
-const band = (x, lo0, lo1, hi1, hi0) => {
-  if (x == null || x <= lo0 || x >= hi0) return 0;
-  if (x >= lo1 && x <= hi1) return 1;
-  return x < lo1 ? (x - lo0) / (lo1 - lo0) : (hi0 - x) / (hi0 - hi1);
-};
-const rampDown = (x, a, b) => (x == null || x <= a) ? 1 : x >= b ? 0 : 1 - (x - a) / (b - a);
-const rampUp = (x, a, b) => 1 - rampDown(x, a, b);
-const lerp = (a, b, f) => a + (b - a) * f;
-const mean = xs => { const v = xs.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    <section class="hero">
+      <div class="when" id="when"></div>
+      <div class="score"><span id="score"></span><small>/100</small></div>
+      <div class="verdict" id="verdict"></div>
+      <div class="countdown" id="countdown"></div>
+      <ul class="reasons" id="reasons"></ul>
+    </section>
 
-const CANVAS_KM = [0, 25], PATH_KM = [75, 150, 250], ALL_KM = [...CANVAS_KM, ...PATH_KM];
-const VARS = ["cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high", "visibility", "relative_humidity_2m", "precipitation_probability"];
+    <section class="card">
+      <h2 id="weekTitle">The week ahead</h2>
+      <div class="week" id="week"></div>
+    </section>
 
-function score(S) {
-  const obs = S[0];
-  const cMid = mean(CANVAS_KM.map(d => S[d].cloud_cover_mid));
-  const cHigh = mean(CANVAS_KM.map(d => S[d].cloud_cover_high));
-  const canvas = Math.min(1, 0.65 * band(cMid, 5, 30, 70, 90) + 0.45 * band(cHigh, 10, 25, 80, 95));
-  const base = lerp(0.25, 1, canvas);
-  const pathBlock = mean(PATH_KM.map(d => Math.min(100, (S[d].cloud_cover_low || 0) + 0.5 * (S[d].cloud_cover_mid || 0))));
-  const path = rampDown(pathBlock, 15, 75);
-  const local = lerp(0.3, 1, rampDown(obs.cloud_cover_low, 20, 80));
-  const overcast = lerp(0.2, 1, rampDown(obs.cloud_cover, 85, 100));
-  const rain = 1 - 0.6 * ((obs.precipitation_probability || 0) / 100);
-  const visKm = obs.visibility != null ? obs.visibility / 1000 : null;
-  const visF = visKm != null ? lerp(0.5, 1, rampUp(visKm, 5, 25)) : 1;
-  const humF = lerp(0.85, 1, band(obs.relative_humidity_2m, 15, 35, 70, 95));
-  const clarity = visF * humF;
-  const raw = 100 * base * path * local * overcast * rain * clarity;
-  return {
-    score: Math.round(Math.max(0, Math.min(100, raw))),
-    factors: { canvas, path, local, overcast, rain, clarity },
-    inputs: { cMid, cHigh, pathLow: mean(PATH_KM.map(d => S[d].cloud_cover_low)), pathMid: mean(PATH_KM.map(d => S[d].cloud_cover_mid)),
-              low: obs.cloud_cover_low, total: obs.cloud_cover, rainP: obs.precipitation_probability, visKm, hum: obs.relative_humidity_2m },
-  };
-}
-const verdictFor = s => s >= 75 ? "Fire in the sky!" : s >= 50 ? "Potentially good" : s >= 25 ? "Some colour possible" : "Not tonight";
+    <section class="card">
+      <h2>When to watch</h2>
+      <div class="times" id="times"></div>
+      <div class="note" id="timesNote"></div>
+    </section>
 
-/* ---------- geometry ---------- */
-const rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
-function sunsetAzimuth(lat, doy) {
-  const decl = rad(23.44) * Math.sin(rad(360 / 365 * (doy - 81)));
-  const c = Math.max(-1, Math.min(1, Math.sin(decl) / Math.cos(rad(lat))));
-  return 360 - deg(Math.acos(c));
-}
-function destination(lat, lon, brg, km) {
-  if (!km) return [lat, lon];
-  const R = 6371, p1 = rad(lat), l1 = rad(lon), th = rad(brg), d = km / R;
-  const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(th));
-  const l2 = l1 + Math.atan2(Math.sin(th) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
-  return [deg(p2), ((deg(l2) + 540) % 360) - 180];
-}
-const compass = a => ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(a / 45) % 8];
+    <details class="card" id="details">
+      <summary>Why this score</summary>
+      <div class="detail-body" id="detailBody"></div>
+    </details>
+  </main>
 
-/* ---------- data ---------- */
-async function getJSON(url) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    const r = await fetch(url, { signal: ctrl.signal });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return await r.json();
-  } finally { clearTimeout(t); }
-}
-
-function valueAt(loc, v, t) {
-  const times = loc.hourly.time, vals = loc.hourly[v];
-  for (let i = 0; i < times.length - 1; i++) {
-    if (times[i] <= t && t <= times[i + 1]) {
-      const a = vals[i], b = vals[i + 1];
-      if (a == null || b == null) return a == null ? b : a;
-      return a + (b - a) * (t - times[i]) / (times[i + 1] - times[i]);
-    }
-  }
-  return null;
-}
-
-async function predict(lat, lon) {
-  const now = Date.now() / 1000;
-  const doy = Math.floor((Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 0)) / 86400000);
-  const az = sunsetAzimuth(lat, doy);
-  const pts = ALL_KM.map(km => destination(lat, lon, az, km));
-  const params = new URLSearchParams({
-    latitude: pts.map(p => p[0].toFixed(4)).join(","),
-    longitude: pts.map(p => p[1].toFixed(4)).join(","),
-    hourly: VARS.join(","), daily: "sunset", timezone: "auto", timeformat: "unixtime", forecast_days: "2",
-  });
-  let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params);
-  if (!Array.isArray(data)) data = [data];
-  const obs = data[0];
-  const sunset = obs.daily.sunset.find(s => s != null && s + 1200 > now);
-  if (sunset == null) throw new Error("no-sunset");
-  const S = {};
-  ALL_KM.forEach((km, i) => { S[km] = {}; for (const v of VARS) S[km][v] = valueAt(data[i], v, sunset); });
-  return { ...score(S), sunset, az, offset: obs.utc_offset_seconds || 0 };
-}
-
-/* ---------- rendering ---------- */
-const $ = id => document.getElementById(id);
-function show(which) {
-  $("loading").hidden = which !== "loading";
-  $("result").hidden = which !== "result";
-  $("picker").hidden = which !== "picker";
-  $("details").hidden = which !== "result";
-}
-function loading(text) { $("loadingText").textContent = text; show("loading"); }
-
-const mix = (a, b, t) => {
-  const pa = a.match(/\w\w/g).map(h => parseInt(h, 16)), pb = b.match(/\w\w/g).map(h => parseInt(h, 16));
-  return "#" + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, "0")).join("");
-};
-function paintSky(t) {
-  const top = mix("2b2d38", "2a1846", t), mid = mix("4b4e5c", "b8336a", t), low = mix("6e707b", "ff7a2f", t);
-  document.body.style.background = `linear-gradient(180deg, ${top} 0%, ${mid} 55%, ${low} 100%) fixed`;
-  document.querySelector('meta[name="theme-color"]').content = top;
-}
-
-function localTime(unix, offset) {
-  const d = new Date((unix + offset) * 1000);
-  let h = d.getUTCHours(); const m = String(d.getUTCMinutes()).padStart(2, "0");
-  const ampm = h >= 12 ? "pm" : "am"; h = h % 12 || 12;
-  return `${h}:${m}${ampm}`;
-}
-function dayLabel(unix, offset) {
-  const now = Date.now() / 1000;
-  const a = new Date((now + offset) * 1000).getUTCDate(), b = new Date((unix + offset) * 1000).getUTCDate();
-  return a === b ? "Tonight" : "Tomorrow";
-}
-
-function reasons(r) {
-  const f = r.factors, out = [];
-  const dir = compass(r.az);
-  if (f.canvas >= 0.7) out.push("Good cloud overhead to catch the light");
-  else if (f.canvas >= 0.3) out.push("Some cloud overhead to catch the light");
-  else out.push("Mostly clear above, so little cloud to light up");
-  if (f.path < 0.5) out.push(`Cloud to the ${dir} may block the sun`);
-  else if (f.path >= 0.9) out.push(`Clear horizon to the ${dir}`);
-  if (f.overcast < 0.7) out.push("Heavy overcast overhead");
-  else if (f.local < 0.7) out.push("Low cloud overhead may hide the colours");
-  if (f.rain < 0.8) out.push("Rain is likely");
-  if (f.clarity < 0.8) out.push("Hazy air will mute the colours");
-  return out.slice(0, 3);
-}
-
-let countdownTimer = null;
-function renderResult(r) {
-  paintSky(r.score / 100);
-  $("when").textContent = `${dayLabel(r.sunset, r.offset)} · sunset ${localTime(r.sunset, r.offset)}`;
-  $("score").textContent = r.score;
-  $("verdict").textContent = verdictFor(r.score);
-  $("reasons").innerHTML = reasons(r).map(t => `<li>${t}</li>`).join("");
-
-  const tick = () => {
-    const mins = Math.round((r.sunset - Date.now() / 1000) / 60);
-    $("countdown").textContent = mins > 90 ? `In ${Math.floor(mins / 60)}h ${mins % 60}m`
-      : mins > 0 ? `In ${mins} minutes` : mins > -20 ? "Happening now. Look west!" : "";
-  };
-  clearInterval(countdownTimer); tick(); countdownTimer = setInterval(tick, 30000);
-
-  const names = { canvas: "Cloud canvas", path: "Clear horizon", local: "No low cloud", overcast: "Not overcast", rain: "Dry", clarity: "Clear air" };
-  const i = r.inputs, n = x => x == null ? "–" : Math.round(x);
-  $("detailBody").innerHTML = Object.entries(r.factors).map(([k, v]) => `
-    <div class="f-row"><span>${names[k]}</span><div class="f-bar"><div class="f-fill" style="width:${Math.round(v * 100)}%"></div></div><span class="f-num">${Math.round(v * 100)}%</span></div>`).join("")
-    + `<div class="raw">Overhead: mid cloud ${n(i.cMid)}%, high ${n(i.cHigh)}%, low ${n(i.low)}%, total ${n(i.total)}%<br>
-       Towards the sun (75–250 km ${compass(r.az)}): low ${n(i.pathLow)}%, mid ${n(i.pathMid)}%<br>
-       Rain ${n(i.rainP)}% · visibility ${n(i.visKm)} km · humidity ${n(i.hum)}%</div>`;
-  show("result");
-}
-
-/* ---------- flow ---------- */
-let current = null;
-function save(p) { try { localStorage.setItem("wib-place", JSON.stringify(p)); } catch (e) {} }
-function load() { try { return JSON.parse(localStorage.getItem("wib-place")); } catch (e) { return null; } }
-
-function renderPlace(place) {
-  $("placeBtn").textContent = "Change place";
-  $("placeBtn").hidden = false;
-  $("locName").textContent = place.label || place.name;
-  const coords = `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`;
-  const acc = place.accuracy ? ` · ±${place.accuracy < 1000 ? Math.round(place.accuracy) + " m" : (place.accuracy / 1000).toFixed(1) + " km"}` : "";
-  const parts = [place.detail, (place.gps ? "GPS " : "") + coords + acc].filter(Boolean);
-  const map = `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lon}`;
-  $("locSub").innerHTML = parts.map(esc).join("<br>") + ` · <a href="${map}" target="_blank" rel="noopener">View on map</a>`;
-  const warn = place.accuracy && place.accuracy > 1000;
-  $("locWarn").hidden = !warn;
-  if (warn) $("locWarn").textContent = "Your location is only approximate. Turn on precise location, or search for the place.";
-}
-const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-async function nameForGps(place) {
-  try {
-    const d = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${place.lat}&longitude=${place.lon}&localityLanguage=en`);
-    const name = d.locality || d.city;
-    if (name && current === place) {
-      place.label = `Near ${name}`;
-      place.detail = [d.city && d.city !== name ? d.city : null, d.principalSubdivision, (d.countryName || "").replace(/ \(the\)$/, "")].filter(Boolean).join(", ");
-      renderPlace(place);
-    }
-  } catch (e) { /* keep coordinates only */ }
-}
-
-async function run(place) {
-  current = place; save(place);
-  renderPlace(place);
-  if (place.gps) nameForGps(place);
-  loading("Checking the sky…");
-  try {
-    renderResult(await predict(place.lat, place.lon));
-  } catch (e) {
-    openPicker(e.message === "no-sunset"
-      ? "There's no sunset here in the next two days. Try another place."
-      : "Couldn't get the forecast. Check your connection, or try another place.");
-  }
-}
-
-function openPicker(msg) {
-  $("pickerText").textContent = msg || "Where are you watching the sunset?";
-  $("results").innerHTML = ""; $("searchErr").hidden = true;
-  show("picker");
-}
-
-function locate() {
-  if (!navigator.geolocation) { openPicker("Location isn't available. Search for a place instead."); return; }
-  loading("Finding your location…");
-  navigator.geolocation.getCurrentPosition(
-    p => run({ name: "My location", label: "My location", lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy, gps: true }),
-    () => openPicker("Couldn't get your location. Search for a place instead."),
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 120000 }
-  );
-}
-
-$("searchForm").addEventListener("submit", async e => {
-  e.preventDefault();
-  const q = $("q").value.trim();
-  if (!q) { $("searchErr").textContent = "Type a town or place name."; $("searchErr").hidden = false; return; }
-  $("searchErr").hidden = true; $("results").innerHTML = "<div class='status'>Searching…</div>";
-  try {
-    const d = await getJSON("https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&name=" + encodeURIComponent(q));
-    const list = d.results || [];
-    if (!list.length) { $("results").innerHTML = ""; $("searchErr").textContent = "No places found. Try another spelling."; $("searchErr").hidden = false; return; }
-    $("results").innerHTML = "";
-    for (const p of list) {
-      const b = document.createElement("button"); b.type = "button";
-      const sub = [p.admin1, p.country].filter(Boolean).join(", ");
-      b.innerHTML = `${p.name}<br><small>${sub}</small>`;
-      b.addEventListener("click", () => run({ name: p.name, label: p.name, detail: sub, lat: p.latitude, lon: p.longitude }));
-      $("results").appendChild(b);
-    }
-  } catch (err) {
-    $("results").innerHTML = ""; $("searchErr").textContent = "Search failed. Check your connection."; $("searchErr").hidden = false;
-  }
-});
-$("gpsBtn").addEventListener("click", locate);
-$("placeBtn").addEventListener("click", () => openPicker());
-
-// Start: refresh GPS if that's what was used last, otherwise reuse the saved place.
-const saved = load();
-if (saved && !saved.gps) run(saved); else locate();
-</script>
+  <footer class="foot">
+    Forecast by <a href="https://open-meteo.com">Open-Meteo</a> · Model <span id="modelVersion"></span><br>
+    Scores are predictions, not promises.
+  </footer>
+</div>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
