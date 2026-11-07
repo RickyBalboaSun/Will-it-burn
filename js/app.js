@@ -1006,6 +1006,7 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", registerWorker);
 }
 $("modelVersion").textContent = M.MODEL_VERSION;
+$("howBtn").addEventListener("click", () => $("how").showModal());
 try { localStorage.removeItem("wib-last"); } catch { /* old cache format */ }
 setKindButtons();
 const saved = store.get("wib-place");

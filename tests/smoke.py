@@ -139,6 +139,13 @@ def main():
         sel = pg.query_selector_all(".day")[2]
         check("on" in (sel.get_attribute("class") or ""), "selected day highlighted")
         check(pg.inner_text("#score") == sel.query_selector(".s").inner_text(), "hero shows the selected day's score")
+        print("How it works")
+        pg.click("#howBtn"); pg.wait_for_timeout(200)
+        check(pg.evaluate("document.getElementById('how').open"), "explainer opens")
+        shot(pg, "12-how")
+        pg.click(".how-close"); pg.wait_for_timeout(100)
+        check(not pg.evaluate("document.getElementById('how').open"), "explainer closes")
+
         print("Calendar + compass")
         with pg.expect_download() as dl: pg.click("#calBtn")
         ics = open(dl.value.path()).read()

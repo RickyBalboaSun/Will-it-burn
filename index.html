@@ -63,7 +63,7 @@
       <button class="save-spot" id="saveSpot" hidden>☆ Save this spot</button>
     </div>
 
-    <section class="hero">
+    <section class="hero" aria-live="polite">
       <div class="when" id="when"></div>
       <div class="score"><span id="score"></span><small>/100</small></div>
       <div class="verdict" id="verdict"></div>
@@ -193,10 +193,42 @@
   </main>
 
   <footer class="foot">
+    <button class="linkbtn" id="howBtn">How it works</button><br>
     Forecast by <a href="https://open-meteo.com">Open-Meteo</a> · Model <span id="modelVersion"></span><br>
     Scores are predictions, not promises.
   </footer>
 </div>
+<dialog class="how" id="how" aria-labelledby="howTitle">
+  <form method="dialog"><button class="how-close" aria-label="Close">×</button></form>
+  <h2 id="howTitle">How it works</h2>
+  <svg viewBox="0 0 340 170" role="img" aria-label="Diagram: sunlight from below the horizon travels under distant clear sky and lights the clouds above you">
+    <defs>
+      <linearGradient id="hs" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2a1846"/><stop offset="1" stop-color="#b8336a"/></linearGradient>
+      <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffcf6b"/></marker>
+    </defs>
+    <rect width="340" height="170" rx="12" fill="url(#hs)"/>
+    <path d="M0 140 Q170 128 340 140 L340 170 L0 170Z" fill="#1a1424"/>
+    <circle cx="322" cy="150" r="12" fill="#ffcf6b"/>
+    <path d="M312 146 L160 118 L74 58" stroke="#ffcf6b" stroke-width="2.5" fill="none" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+    <g fill="#ff8a7a"><ellipse cx="62" cy="52" rx="34" ry="8"/><ellipse cx="100" cy="46" rx="26" ry="7"/></g>
+    <g fill="#c9c6d6" opacity="0.5"><ellipse cx="250" cy="70" rx="20" ry="6"/></g>
+    <circle cx="40" cy="136" r="5" fill="#fff"/>
+    <text x="36" y="34" fill="#fff" font-size="10">canvas: cloud overhead</text>
+    <text x="150" y="112" fill="#fff" font-size="10">light path: must be clear</text>
+    <text x="272" y="132" fill="#fff" font-size="10">sun</text>
+    <text x="22" y="160" fill="#fff" font-size="10">you</text>
+  </svg>
+  <p>The best sunsets happen when the sun, already at or below your horizon, shines <b>underneath</b> clouds above you and lights them from below.</p>
+  <p>So the app checks the forecast in two places: <b>overhead</b> (is there cloud to light up?) and <b>75–250 km towards the sun</b> (is the sky clear enough for the light to get through?).</p>
+  <ul>
+    <li><b>Cloud canvas</b>: mid and high cloud overhead, ideally 30–70% cover.</li>
+    <li><b>Clear horizon</b>: little low cloud along the light path.</li>
+    <li><b>No low cloud / not overcast</b>: a thick deck overhead hides everything.</li>
+    <li><b>Dry and clear air</b>: rain and haze wash the colours out.</li>
+  </ul>
+  <p>The six factors are multiplied together, so one bad factor pulls the whole score down. A clear sky scores about 25: a pleasant glow, but nothing to light up.</p>
+  <p class="small">Forecasts can be wrong, especially about cloud, so check the confidence and look again nearer the time. Your ratings help tune the model.</p>
+</dialog>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

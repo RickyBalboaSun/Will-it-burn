@@ -1,5 +1,9 @@
 # App changelog
 
+## 2026-11-07 – v3.4
+- **How it works**: a diagram and plain-English explanation of the score, for anyone you share the app with (link at the bottom of the page).
+- Accessibility: score changes are announced to screen readers; visible focus outlines for keyboard users.
+
 ## 2026-11-07 – v3.3
 - **Elevation** shown in the location panel, with a caveat at high viewpoints (above 1,500 m): forecasts call cloud up to about 1.8 km above the ground "low", which the model treats as blocking, but from a rim or summit it can light up. (From the Bryce sunset, which scored 9 but rated 7/10.)
 
