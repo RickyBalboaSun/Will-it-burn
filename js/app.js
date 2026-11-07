@@ -265,13 +265,13 @@ function renderConfidence() {
 /* ---------- terrain: the real horizon towards the sun ---------- */
 async function terrainFor(lat, lon, az) {
   const key = `${lat.toFixed(3)},${lon.toFixed(3)},${Math.round(az / 2) * 2}`;
-  const cache = store.get("wib-terrain", {}) || {};
+  const cache = store.get("wib-terrain2", {}) || {};
   if (cache[key]) return cache[key];
   const pts = M.TERRAIN_KM.map(km => M.destination(lat, lon, az, km));
   const d = await getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${pts.map(p => p[0].toFixed(5)).join(",")}&longitude=${pts.map(p => p[1].toFixed(5)).join(",")}`, 10000);
   const h = M.horizonAngle(d.elevation);
   const keys = Object.keys(cache); if (keys.length > 30) delete cache[keys[0]];
-  cache[key] = h; store.set("wib-terrain", cache);
+  cache[key] = h; store.set("wib-terrain2", cache);
   return h;
 }
 function renderTerrain() {

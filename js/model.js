@@ -366,9 +366,12 @@ export const TERRAIN_KM = [0, 0.15, 0.3, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6.5, 8, 
  * Returns {angle (deg), atKm, rise (m above you)} for the highest obstruction.
  */
 export function horizonAngle(heights, kms = TERRAIN_KM, eye = 1.7) {
-  const R = 6371000, k = 0.13, h0 = heights[0] + eye;
+  // Terrain cells are ~90 m across, so a viewpoint on a cliff edge can sit in a cell that averages part of the drop.
+  // Treat you as at least as high as the ground 150 m towards the sun, and ignore anything closer than 300 m.
+  const R = 6371000, k = 0.13, h0 = Math.max(heights[0], kms[1] <= 0.15 && heights[1] != null ? heights[1] : -Infinity) + eye;
   let best = { angle: -Infinity, atKm: null, rise: 0 };
   for (let i = 1; i < kms.length; i++) {
+    if (kms[i] < 0.3) continue;
     const d = kms[i] * 1000, h = heights[i];
     if (h == null || !isFinite(h)) continue;
     const drop = d * d * (1 - k) / (2 * R);                  // curvature minus refraction
@@ -393,7 +396,8 @@ export function terrainSummary(h, eventUnix, terrainUnix, kind = "sunset") {
   const mins = terrainUnix != null ? Math.round(Math.abs(eventUnix - terrainUnix) / 60) : null;
   const dist = h.atKm < 1 ? `${Math.round(h.atKm * 1000)} m` : `${h.atKm} km`;
   if (h.angle < 0.5) return { level: "clear", text: `Open horizon towards the ${kind}.` };
+  const caveat = " (From terrain data: trees and buildings aren't included.)";
   const when = mins ? ` The sun ${kind === "sunset" ? "disappears behind it about " + mins + " min before the official sunset" : "clears it about " + mins + " min after the official sunrise"}.` : "";
-  if (h.angle < 2) return { level: "low", text: `Slightly raised horizon (${h.angle.toFixed(1)}°, high ground ${dist} away).${when}` };
-  return { level: "high", text: `Hills or ridges block the low sun: the horizon is ${h.angle.toFixed(1)}° up, ${dist} away.${when} Clouds overhead can still light up, but you won't see the sun touch the horizon.` };
+  if (h.angle < 2) return { level: "low", text: `Slightly raised horizon (${h.angle.toFixed(1)}°, high ground ${dist} away).${when}${caveat}` };
+  return { level: "high", text: `Hills or ridges block the low sun: the horizon is ${h.angle.toFixed(1)}° up, ${dist} away.${when} Clouds overhead can still light up, but you won't see the sun touch the horizon.${caveat}` };
 }

@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v4.3.1
+- Terrain check is safer at cliff-edge viewpoints: terrain cells are ~90 m across, so you're treated as at least as high as the ground 150 m towards the sun, and nothing closer than 300 m counts as a ridge. The note now says trees and buildings aren't included.
+
 ## 2026-11-07 – v4.3
 - **Terrain check**: the app samples the ground height along the sun's direction (up to 80 km) and works out the real horizon, allowing for the Earth's curve. If hills or ridges are in the way it says so (in the location details), adds "Sun goes behind the hills" to When to watch, and draws the ridge in the window view. The nearby scan notes which places have hills towards the sun and which have an open horizon.
 

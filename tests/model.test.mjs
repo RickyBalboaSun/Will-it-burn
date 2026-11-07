@@ -167,3 +167,12 @@ test("terrain moves the effective sunset earlier", () => {
   assert.equal(s.level, "high"); assert.match(s.text, /3\.0° up, 2 km away.*min before the official sunset/);
   assert.equal(M.terrainSummary({ angle: 0.2, atKm: 30, rise: 5 }, sunset, sunset, "sunset").level, "clear");
 });
+
+test("a cliff-edge viewpoint doesn't create a false ridge", () => {
+  // you stand on the rim, but your terrain cell averages part of the drop (60 m lower than the rim behind you)
+  const rim = M.TERRAIN_KM.map((km, i) => i === 0 ? 2440 : km <= 1 ? 2500 : 2500 - km * 2);
+  assert.ok(M.horizonAngle(rim).angle < 0.5, `got ${M.horizonAngle(rim).angle}`);
+  // a real ridge 2 km away is still found
+  const ridge = M.TERRAIN_KM.map(km => km === 2 ? 2700 : 2500);
+  assert.ok(M.horizonAngle(ridge).angle > 5);
+});
