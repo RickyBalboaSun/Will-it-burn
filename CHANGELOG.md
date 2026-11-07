@@ -1,5 +1,8 @@
 # App changelog
 
+## 2026-11-07 – v4.3
+- **Terrain check**: the app samples the ground height along the sun's direction (up to 80 km) and works out the real horizon, allowing for the Earth's curve. If hills or ridges are in the way it says so (in the location details), adds "Sun goes behind the hills" to When to watch, and draws the ridge in the window view. The nearby scan notes which places have hills towards the sun and which have an open horizon.
+
 ## 2026-11-07 – v4.2
 - **Log it on GitHub**: after rating, one tap opens a ready-made issue in your data repository; attach the photo and submit. A GitHub job adds it to the log, saves the photo, replies with the entry number and closes the issue. (Repository set in More → Logging.)
 - **On-location check**: when you rate, the app notes how far you are from the spot and how long after sunset, and marks the entry "✓ on location" when you're there.

@@ -62,6 +62,7 @@ const state = {
   sel: 0,
   past: false,       // looking back at a past date
   updatedAt: null,
+  terrain: null,      // horizon angle towards the sun
 };
 
 /* ---------- data ---------- */
@@ -224,6 +225,11 @@ function renderSelected() {
   const rows = kind === "sunset"
     ? [["Golden hour begins", v.golden], ["Sunset", e.t, true], ["Best colour", null, true, `${clock(v.peakStart, off)}–${clock(v.peakEnd, off)}`], ["Afterglow fades", v.civil]]
     : [["First light", v.civil], ["Best colour", null, true, `${clock(v.peakStart, off)}–${clock(v.peakEnd, off)}`], ["Sunrise", e.t, true], ["Golden hour ends", v.golden]];
+  renderTerrain();
+  if (e.terrainT && state.terrain && state.terrain.angle >= 0.5) {
+    const label = kind === "sunset" ? "Sun goes behind the hills" : "Sun clears the hills";
+    rows.splice(kind === "sunset" ? 1 : 3, 0, [label, e.terrainT]);
+  }
   $("times").innerHTML = rows.filter(r => r[1] != null || r[3]).map(([label, t, hl, text]) =>
     `<span class="${hl ? "hl" : ""}">${label}</span><span class="t ${hl ? "hl" : ""}">${text || clock(t, off)}</span>`).join("");
   $("timesNote").textContent = kind === "sunset"
@@ -256,13 +262,36 @@ function renderConfidence() {
       : c.level === "Medium" ? "The models partly disagree. Check again nearer the time."
       : "The models disagree a lot. Treat this score as a rough guess and check again later."}`;
 }
+/* ---------- terrain: the real horizon towards the sun ---------- */
+async function terrainFor(lat, lon, az) {
+  const key = `${lat.toFixed(3)},${lon.toFixed(3)},${Math.round(az / 2) * 2}`;
+  const cache = store.get("wib-terrain", {}) || {};
+  if (cache[key]) return cache[key];
+  const pts = M.TERRAIN_KM.map(km => M.destination(lat, lon, az, km));
+  const d = await getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${pts.map(p => p[0].toFixed(5)).join(",")}&longitude=${pts.map(p => p[1].toFixed(5)).join(",")}`, 10000);
+  const h = M.horizonAngle(d.elevation);
+  const keys = Object.keys(cache); if (keys.length > 30) delete cache[keys[0]];
+  cache[key] = h; store.set("wib-terrain", cache);
+  return h;
+}
+function renderTerrain() {
+  const d = state.data, e = state.events[state.sel], h = state.terrain;
+  const note = $("terrainNote");
+  if (!d || !e || !h) { note.hidden = true; return; }
+  e.terrainT = M.terrainEventTime(state.place.lat, state.place.lon, e.t, h.angle, d.kind);
+  const sum = M.terrainSummary(h, e.t, e.terrainT, d.kind);
+  note.hidden = !sum || sum.level === "clear";
+  if (sum) note.textContent = sum.text;
+  $("locFlag").hidden = $("elevWarn").hidden && $("locWarn").hidden && note.hidden;
+}
+
 /* ---------- window view with time slider ---------- */
 function renderScene() {
   const d = state.data, e = state.events[state.sel];
   if (!d || !e || !e.layers) return;
   const m = Number($("timeSlider").value), t = e.t + m * 60;
   const sunElev = M.solarPosition(state.place.lat, state.place.lon, t).elevation;
-  $("scene").innerHTML = V.windowSVG({ e, layers: e.layers, kind: d.kind, az: d.az, minutes: m, sunElev });
+  $("scene").innerHTML = V.windowSVG({ e, layers: e.layers, kind: d.kind, az: d.az, minutes: m, sunElev, horizonDeg: state.terrain ? state.terrain.angle : 0 });
   const word = d.kind === "sunset" ? "sunset" : "sunrise";
   const g = V.glowCurve(m, d.kind);
   const rel = m === 0 ? `At ${word}` : `${Math.abs(m)} min ${m > 0 ? "after" : "before"} ${word}`;
@@ -674,10 +703,21 @@ $("scanBtn").addEventListener("click", async () => {
       </button>`).join("") + `<div class="note">This only knows about the sky. Check the spot has an open view ${M.compass(d.az)}, with no hills, trees or buildings in the way.</div>`;
     drawNearMap(scored, p);
     nameNearby(scored.slice(0, 6).filter(x => x.dist));
+    flagTerrain(scored.slice(0, 6), d.az);
   } catch {
     $("nearStatus").textContent = "Couldn't scan right now. Try again in a minute.";
   } finally { $("scanBtn").disabled = false; }
 });
+async function flagTerrain(list, az) {
+  for (const x of list) {
+    try {
+      const h = await terrainFor(x.lat, x.lon, az);
+      const btn = document.querySelector(`.near-item[data-lat="${x.lat}"][data-lon="${x.lon}"] small`);
+      if (btn && h.angle >= 2) btn.textContent += ` · hills ${h.angle.toFixed(0)}° high towards the sun`;
+      else if (btn && h.angle < 0.5) btn.textContent += " · open horizon";
+    } catch { /* skip */ }
+  }
+}
 async function reverseName(lat, lon) {
   const d = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, 8000);
   return d.locality || d.city || null;
@@ -1004,6 +1044,14 @@ function showForecast(place, d, at, mode) {
   $("offline").hidden = mode !== "offline";
   if (mode === "offline") $("offline").textContent = `Offline · forecast from ${ago(Date.now() - at)}`;
   renderUpdated(mode === "updating");
+  if (!state.terrain || state.terrainFor !== `${place.lat},${place.lon},${d.kind}`) {
+    state.terrain = null;
+    const tag = `${place.lat},${place.lon},${d.kind}`;
+    terrainFor(place.lat, place.lon, d.az).then(h => {
+      if (state.place !== place || state.data !== d) return;
+      state.terrain = h; state.terrainFor = tag; renderSelected();
+    }).catch(() => { /* terrain is optional */ });
+  }
 }
 function renderUpdated(updating) {
   $("updated").textContent = updating ? "Updating…" : state.updatedAt ? `Updated ${ago(Date.now() - state.updatedAt)}` : "";
@@ -1133,7 +1181,7 @@ $("modelVersion").textContent = M.MODEL_VERSION;
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.1";
+const RELEASE = "4.3";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

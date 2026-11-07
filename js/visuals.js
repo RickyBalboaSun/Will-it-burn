@@ -60,8 +60,9 @@ export function glowCurve(minutes, kind = "sunset") {
 /**
  * opts: { e (scored event), layers (layersAt), kind, az, minutes, sunElev (deg at that time), W, H }
  */
-export function windowSVG({ e, layers, kind, az, minutes = 10, sunElev = -3, W = 358, H = 250 }) {
+export function windowSVG({ e, layers, kind, az, minutes = 10, sunElev = -3, horizonDeg = 0, W = 358, H = 250 }) {
   const f = e.factors, rand = rng(e.t);
+  const hz = Math.max(0, Math.min(8, horizonDeg || 0));       // raise the skyline for hills (9 px per degree, as for the sun)
   const lit = clamp(f.path * glowCurve(minutes, kind) * (0.55 + 0.45 * e.score / 100));
   const g = H * 0.8;                        // horizon
   const over = layers[0], near = layers[25];
@@ -86,15 +87,20 @@ export function windowSVG({ e, layers, kind, az, minutes = 10, sunElev = -3, W =
   for (let i = 0; i < nL; i++) o.push(cloud(rand() * W * 0.9 - 20, g * (0.05 + rand() * 0.5), 90 + rand() * 50, PAL.dark, 0.85));
   // the sun, at its real elevation for this time
   const sy = g - sunElev * 9, sr = 15;
-  if (sunElev > -2.5) o.push(`<circle cx="${W / 2}" cy="${sy.toFixed(1)}" r="${sr}" fill="${PAL.gold}"/>`);
+  if (sunElev > hz - 2.5) o.push(`<circle cx="${W / 2}" cy="${sy.toFixed(1)}" r="${sr}" fill="${PAL.gold}"/>`);
   // low cloud on the far horizon (the light path)
   if (pathLow > 12) {
     const bankH = 8 + pathLow / 100 * 46;
     for (let x = -20; x < W + 30; x += 30) o.push(`<circle cx="${x + rand() * 10}" cy="${(g - bankH * 0.4 + rand() * 6).toFixed(1)}" r="${(bankH * (0.55 + rand() * 0.3)).toFixed(1)}" fill="${PAL.dark}" opacity="0.92"/>`);
   }
-  // ground
-  o.push(`<path d="M0 ${g} Q ${W * 0.3} ${g - 6} ${W * 0.55} ${g + 2} T ${W} ${g - 3} L ${W} ${H} L 0 ${H} Z" fill="${PAL.ground}"/>`);
-  if (sunElev <= -2.5) o.push(`<circle cx="${W / 2}" cy="${Math.min(H - 18, sy).toFixed(1)}" r="${sr}" fill="none" stroke="${PAL.gold}" stroke-width="2" stroke-dasharray="4 4" opacity="0.8"/>`);
+  // ground, with hills rising to the real horizon angle
+  if (hz >= 0.5) {
+    const top = g - hz * 9;
+    o.push(`<path d="M0 ${g} L ${W * 0.12} ${top + 10} L ${W * 0.3} ${top + 3} L ${W * 0.45} ${top} L ${W * 0.62} ${top + 6} L ${W * 0.8} ${top + 1} L ${W} ${top + 12} L ${W} ${H} L 0 ${H} Z" fill="${PAL.ground}"/>`);
+  } else {
+    o.push(`<path d="M0 ${g} Q ${W * 0.3} ${g - 6} ${W * 0.55} ${g + 2} T ${W} ${g - 3} L ${W} ${H} L 0 ${H} Z" fill="${PAL.ground}"/>`);
+  }
+  if (sunElev <= hz - 2.5) o.push(`<circle cx="${W / 2}" cy="${Math.min(H - 40, sy).toFixed(1)}" r="${sr}" fill="none" stroke="${PAL.gold}" stroke-width="2" stroke-dasharray="4 4" opacity="0.8"/>`);
   o.push(`<text x="${W / 2}" y="${H - 10}" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.75)" font-family="Inter, system-ui, sans-serif">${esc(sunText(sunElev))} · facing ${esc(M.compass(az))}</text>`);
   o.push(`</g></svg>`);
   return o.join("");

@@ -354,3 +354,46 @@ export function logIssueBody(x, clockText) {
   ];
   return lines.join("\n");
 }
+
+/* ---------- terrain: how high is the real horizon towards the sun? ---------- */
+/** Distances (km) sampled along the sun's bearing; dense close in, where hills matter most. */
+export const TERRAIN_KM = [0, 0.15, 0.3, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6.5, 8, 10, 12.5, 15, 20, 25, 30, 40, 50, 65, 80];
+
+/**
+ * Horizon angle from ground heights along the bearing.
+ * heights[i] is the elevation (m) at TERRAIN_KM[i]; heights[0] is where you stand.
+ * Includes Earth's curvature and standard refraction (k = 0.13). Eye height 1.7 m.
+ * Returns {angle (deg), atKm, rise (m above you)} for the highest obstruction.
+ */
+export function horizonAngle(heights, kms = TERRAIN_KM, eye = 1.7) {
+  const R = 6371000, k = 0.13, h0 = heights[0] + eye;
+  let best = { angle: -Infinity, atKm: null, rise: 0 };
+  for (let i = 1; i < kms.length; i++) {
+    const d = kms[i] * 1000, h = heights[i];
+    if (h == null || !isFinite(h)) continue;
+    const drop = d * d * (1 - k) / (2 * R);                  // curvature minus refraction
+    const ang = deg(Math.atan2(h - drop - h0, d));
+    if (ang > best.angle) best = { angle: ang, atKm: kms[i], rise: h - h0 };
+  }
+  return best;
+}
+
+/** When the sun drops below a horizon at `angle` degrees (sunset) or rises above it (sunrise). */
+export function terrainEventTime(lat, lon, eventUnix, angle, kind = "sunset") {
+  // the sun's centre is at about -0.83° at the official sunset/sunrise (refraction + radius)
+  const target = angle - 0.83 + 0.27;   // top edge of the sun meets the terrain line
+  const H = 3 * 3600;
+  return kind === "sunset" ? crossingTime(lat, lon, eventUnix - H, eventUnix + 600, target)
+                           : crossingTime(lat, lon, eventUnix - 600, eventUnix + H, target);
+}
+
+/** Plain-English summary of the horizon. */
+export function terrainSummary(h, eventUnix, terrainUnix, kind = "sunset") {
+  if (h.angle == null || !isFinite(h.angle)) return null;
+  const mins = terrainUnix != null ? Math.round(Math.abs(eventUnix - terrainUnix) / 60) : null;
+  const dist = h.atKm < 1 ? `${Math.round(h.atKm * 1000)} m` : `${h.atKm} km`;
+  if (h.angle < 0.5) return { level: "clear", text: `Open horizon towards the ${kind}.` };
+  const when = mins ? ` The sun ${kind === "sunset" ? "disappears behind it about " + mins + " min before the official sunset" : "clears it about " + mins + " min after the official sunrise"}.` : "";
+  if (h.angle < 2) return { level: "low", text: `Slightly raised horizon (${h.angle.toFixed(1)}°, high ground ${dist} away).${when}` };
+  return { level: "high", text: `Hills or ridges block the low sun: the horizon is ${h.angle.toFixed(1)}° up, ${dist} away.${when} Clouds overhead can still light up, but you won't see the sun touch the horizon.` };
+}

@@ -53,6 +53,11 @@ def forecast_body(qs):
 
 def handle(route):
     u = urlparse(route.request.url); qs = parse_qs(u.query)
+    if "/v1/elevation" in u.path:
+        lats = qs["latitude"][0].split(",")
+        # a 200 m ridge 2 km towards the sun from the Bryce test spot
+        body = {"elevation": [2400 + (200 if i == 7 else 0) for i in range(len(lats))]}
+        route.fulfill(status=200, content_type="application/json", headers={"Access-Control-Allow-Origin": "*"}, body=json.dumps(body)); return
     if "bigdatacloud" in u.netloc:
         body = {"locality": "Bryce Canyon City", "city": "Bryce Canyon City", "principalSubdivision": "Utah [US-UT]", "countryName": "United States of America (the)", "countryCode": "US"}
     elif "geocoding" in u.netloc:
@@ -138,6 +143,9 @@ def main():
         check(pg.inner_text("#score").isdigit(), "score shown")
         check("2,400 m" in pg.inner_text("#locElev") and not pg.is_hidden("#elevWarn") and not pg.is_hidden("#locFlag"), "elevation on the location line, note in details: " + pg.inner_text("#elevWarn")[:60])
         check(pg.query_selector("#scene svg") is not None and pg.query_selector("#slice svg") is not None, "window view and side slice drawn")
+        pg.wait_for_function("!document.getElementById('terrainNote').hidden", timeout=8000)
+        check("Hills or ridges" in pg.inner_text("#terrainNote") and "2 km away" in pg.inner_text("#terrainNote"), "terrain note: " + pg.inner_text("#terrainNote")[:90])
+        check("Sun goes behind the hills" in pg.inner_text("#times"), "viewing times include when the sun goes behind the hills")
         lab0 = pg.inner_text("#sliderLabel")
         pg.eval_on_selector("#timeSlider", "e => { e.value = '-20'; e.dispatchEvent(new Event('input')); }")
         check("20 min before sunset" in pg.inner_text("#sliderLabel") and pg.inner_text("#sliderLabel") != lab0, "time slider updates the scene: " + pg.inner_text("#sliderLabel"))

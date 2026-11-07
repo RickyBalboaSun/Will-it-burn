@@ -147,3 +147,23 @@ test("log issue body is what the ingest job expects", () => {
   assert.match(body, /<!-- will-it-burn-log v1 -->\nkind: sunset\ndate: 2026-11-08\n/);
   assert.match(body, /\nrating: 8\n/); assert.match(body, /\nnotes: Pink clouds\n/); assert.match(body, /<!-- end -->/);
 });
+
+test("horizon angle from terrain", () => {
+  const flat = M.TERRAIN_KM.map(() => 100);
+  const f = M.horizonAngle(flat);
+  assert.ok(f.angle < 0.05, `flat ground gives a near-zero (curvature-lowered) horizon, got ${f.angle}`);
+  const ridge = M.TERRAIN_KM.map(km => km === 2 ? 300 : 100);   // a 200 m ridge 2 km away
+  const r = M.horizonAngle(ridge);
+  assert.equal(r.atKm, 2); assert.ok(Math.abs(r.angle - 5.67) < 0.1, `ridge angle ${r.angle}`);
+  const rim = M.TERRAIN_KM.map((km, i) => i === 0 ? 2400 : 2400 - km * 60);   // standing on a rim, land falls away
+  assert.ok(M.horizonAngle(rim).angle < 0, "from a rim the horizon is below eye level");
+});
+
+test("terrain moves the effective sunset earlier", () => {
+  const lat = 51.57, lon = -4.0, sunset = Date.UTC(2026, 10, 8, 16, 36) / 1000;
+  const t3 = M.terrainEventTime(lat, lon, sunset, 3, "sunset");
+  assert.ok(t3 < sunset && (sunset - t3) / 60 > 15 && (sunset - t3) / 60 < 40, `3° ridge: ${(sunset - t3) / 60} min earlier`);
+  const s = M.terrainSummary({ angle: 3, atKm: 2, rise: 200 }, sunset, t3, "sunset");
+  assert.equal(s.level, "high"); assert.match(s.text, /3\.0° up, 2 km away.*min before the official sunset/);
+  assert.equal(M.terrainSummary({ angle: 0.2, atKm: 30, rise: 5 }, sunset, sunset, "sunset").level, "clear");
+});
