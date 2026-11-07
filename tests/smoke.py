@@ -63,6 +63,12 @@ def handle(route):
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
+    def do_GET(self):
+        if self.path.startswith("/mock/forecast"):
+            body = json.dumps(forecast_body(parse_qs(urlparse(self.path).query))).encode()
+            self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers()
+            self.wfile.write(body); return
+        return super().do_GET()
 
 
 def serve():
@@ -201,6 +207,44 @@ def main():
         extra = os.environ.get("SMOKE_EXTRA")
         if extra:
             exec(open(extra).read(), {"pg": pg, "check": check, "shot": shot, "base": base, "new_page": new_page})
+        ctx.close()
+
+        print("Background alerts")
+        ctx, pg = new_page()
+        pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
+        pg.evaluate("navigator.serviceWorker.ready"); pg.wait_for_timeout(500)
+        r = pg.evaluate("navigator.serviceWorker.ready.then(reg => new Promise(res => { const ch = new MessageChannel(); ch.port1.onmessage = e => res(e.data); reg.active.postMessage({type:'ping'}, [ch.port2]); }))")
+        check(r.get("module") is True, "module service worker running")
+        pg.context.grant_permissions(["notifications"], origin=base.rstrip("/"))
+        cdp = pg.context.new_cdp_session(pg)
+        cdp.send("Browser.grantPermissions", {"origin": base.rstrip("/"), "permissions": ["notifications", "periodicBackgroundSync"]})
+        pg.click("#alertCard summary"); pg.wait_for_timeout(300)
+        pg.click("#alertOn"); pg.wait_for_timeout(600)
+        check("Install the app" in pg.inner_text("#alertStatus"), "not installed: explains how to install first")
+        # simulate an installed app (headless Chrome never grants background sync to an uninstalled page)
+        pg.evaluate("""() => {
+          const q = navigator.permissions.query.bind(navigator.permissions);
+          navigator.permissions.query = d => d.name === 'periodic-background-sync' ? Promise.resolve({ state: 'granted' }) : q(d);
+          const tags = new Set();
+          PeriodicSyncManager.prototype.register = async t => { tags.add(t); };
+          PeriodicSyncManager.prototype.unregister = async t => { tags.delete(t); };
+          PeriodicSyncManager.prototype.getTags = async () => [...tags];
+        }""")
+        pg.select_option("#alertThreshold", "50"); pg.click("#alertOn"); pg.wait_for_timeout(800)
+        check("On:" in pg.inner_text("#alertStatus"), "alerts turned on: " + pg.inner_text("#alertStatus")[:90])
+        tags = pg.evaluate("navigator.serviceWorker.ready.then(r => r.periodicSync.getTags())")
+        check("wib-alert" in tags, "background check registered")
+        pg.evaluate("""async (api) => { const c = await caches.open('wib-config'); const url = new URL('__alert-config', (await navigator.serviceWorker.ready).scope).href;
+                       const cfg = await (await c.match(url)).json(); cfg.testApi = api; await c.put(url, new Response(JSON.stringify(cfg))); }""", base + "mock/forecast")
+        pg.click("#alertTest"); pg.wait_for_function("document.getElementById('alertStatus').textContent.includes('Test alert sent') || document.getElementById('alertStatus').textContent.includes('finished') || document.getElementById('alertStatus').textContent.includes('Couldn')", timeout=15000)
+        check("Test alert sent" in pg.inner_text("#alertStatus"), "test alert: " + pg.inner_text("#alertStatus"))
+        notes = pg.evaluate("navigator.serviceWorker.ready.then(r => r.getNotifications()).then(n => n.map(x => x.title + ' | ' + x.body))")
+        check(len(notes) == 1 and "/100" in notes[0], "notification shown: " + (notes[0] if notes else "none"))
+        pg.eval_on_selector("#alertCard", "e => e.scrollIntoView()"); shot(pg, "11-alerts")
+        pg.click("#alertOff"); pg.wait_for_timeout(500)
+        tags = pg.evaluate("navigator.serviceWorker.ready.then(r => r.periodicSync.getTags())")
+        check("wib-alert" not in tags and "off" in pg.inner_text("#alertStatus"), "alerts turned off")
+
         ctx.close()
 
         print("Rating flow (clock fixed at 9pm, after sunset)")

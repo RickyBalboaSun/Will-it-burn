@@ -88,3 +88,18 @@ test("look-for tips match the conditions", () => {
   assert.ok(M.lookFor(mk({}, {}), "sunrise", 110)[0].d.includes("before sunrise"));
   assert.ok(M.lookFor(mk({ canvas: 0.1, path: 0.5, overcast: 0.5 }, { cMid: 0 }), "sunset", 250).length >= 1);
 });
+
+test("alert timing rules", () => {
+  const off = -7 * 3600, day = Date.UTC(2026, 10, 9) / 1000 - off;           // local midnight, 9 Nov
+  const sunset = { t: day + 17 * 3600 + 20 * 60, score: 74 };
+  const at = h => day + h * 3600;
+  const cfg = { threshold: 60, notified: [] };
+  assert.equal(M.shouldAlert(cfg, sunset, at(14), off, "a"), true, "afternoon before a good sunset");
+  assert.equal(M.shouldAlert(cfg, sunset, at(3), off, "a"), false, "not at 3am");
+  assert.equal(M.shouldAlert(cfg, sunset, at(17), off, "a"), false, "not within 30 min of sunset");
+  assert.equal(M.shouldAlert({ ...cfg, threshold: 80 }, sunset, at(14), off, "a"), false, "below threshold");
+  assert.equal(M.shouldAlert({ ...cfg, notified: ["a"] }, sunset, at(14), off, "a"), false, "only once per event");
+  const sunrise = { t: day + 86400 + 7 * 3600, score: 70 };
+  assert.equal(M.shouldAlert(cfg, sunrise, at(20), off, "b"), true, "evening before a good sunrise");
+  assert.equal(M.shouldAlert(cfg, sunrise, at(14), off, "b"), false, "not in the afternoon for tomorrow's sunrise");
+});

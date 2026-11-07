@@ -21,13 +21,14 @@ How features are prioritised: **value to someone deciding whether to go and watc
 | 14 | Instant start (forecast cache), last updated + refresh | Speed and fewer API calls |
 | 15 | Sky preview drawn from the forecast | See the prediction before reading the number |
 | 16 | What to look for | Turns a score into something to go and see |
+| 17 | Background alerts (Android, installed app) | People act on a notification, not on an app they have to open |
 
 ## Next (in order)
 | # | Feature | Why | Notes |
 |---|---|---|---|
 
 ## Later / needs more than a static site
-- **Alerts** ("tonight looks great") – needs a server and push notifications.
+- **Alerts on iPhone** – iOS doesn't allow background checks for web apps; needs a server sending push messages, or the native app.
 - **Elevation-aware cloud layers** (hypothesis H1 in the data repo) – model change, needs evidence first.
 - **Native app store release** – see the roadmap discussion; Expo rebuild.
 - **Photo-based auto-rating** – vision model on user photos; needs an API key and privacy design.

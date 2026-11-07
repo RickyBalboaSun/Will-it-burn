@@ -117,6 +117,26 @@
       <div class="rate-msg" id="timesMsg"></div>
     </section>
 
+    <details class="card" id="alertCard">
+      <summary>Alerts <span class="count" id="alertBadge"></span></summary>
+      <div class="detail-body">
+        <div class="note" style="margin-top:0" id="alertIntro">Get a notification when a good <span class="kindWord">sunset</span> is forecast here. Your phone checks in the background a few times a day, with no account needed.</div>
+        <label class="field-row">Alert me when the score is
+          <select id="alertThreshold" class="select">
+            <option value="50">50 or more</option>
+            <option value="60" selected>60 or more</option>
+            <option value="75">75 or more</option>
+          </select>
+        </label>
+        <div class="row">
+          <button class="btn small" id="alertOn">Turn on alerts</button>
+          <button class="btn small ghost" id="alertOff" hidden>Turn off</button>
+        </div>
+        <button class="btn small ghost" id="alertTest" hidden>Send a test alert</button>
+        <div class="near-status" id="alertStatus"></div>
+      </div>
+    </details>
+
     <details class="card" id="pastCard">
       <summary>Check a past date</summary>
       <div class="detail-body">

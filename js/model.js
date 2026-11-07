@@ -244,3 +244,22 @@ export function lookFor(e, kind, az) {
     tips.push({ t: "Simple and clean", d: `Expect a clean glow on the ${towards} horizon. Good for silhouettes: put something interesting against the bright sky.` });
   return tips.slice(0, 4);
 }
+
+/**
+ * Should a background check send an alert?
+ * cfg: { threshold, notified: [eventIds] }; e: scored event {t, score}; now/offset in seconds.
+ * Alerts only for an event later today (place's local time), from 08:00 local until 30 min before it, once per event.
+ */
+export function shouldAlert(cfg, e, now, offset, id) {
+  if (!e || e.score == null || e.score < cfg.threshold) return false;
+  if ((cfg.notified || []).includes(id)) return false;
+  const localHour = new Date((now + offset) * 1000).getUTCHours();
+  const sameDay = Math.floor((now + offset) / 86400) === Math.floor((e.t + offset) / 86400);
+  const kindMorning = new Date((e.t + offset) * 1000).getUTCHours() < 12;
+  if (kindMorning) {
+    // sunrise: alert the evening before (18:00-23:00) for tomorrow morning's event
+    const tomorrow = Math.floor((e.t + offset) / 86400) - Math.floor((now + offset) / 86400) === 1;
+    return tomorrow && localHour >= 18 && localHour <= 23;
+  }
+  return sameDay && localHour >= 8 && e.t - now >= 30 * 60;
+}

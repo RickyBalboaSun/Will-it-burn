@@ -1,5 +1,9 @@
 # App changelog
 
+## 2026-11-07 – v3.2
+- **Alerts** (Chrome on Android, with the app installed): get a notification when a sunset (or sunrise) at your chosen place is forecast to score 50, 60 or 75+. Your phone checks in the background a few times a day; no account or server. Sunset alerts arrive during the day; sunrise alerts the evening before. Once per event, never at night. "Send a test alert" checks it works.
+- On phones that can't do background checks, the app says so and points to Add to calendar.
+
 ## 2026-11-07 – v3.1
 - **What to look for**: tips matched to the forecast. Underlit clouds and when they peak, high wisps that stay lit longest, the Belt of Venus opposite the sun on clear evenings, sunbeams through broken cloud, rainbow chances with showers, a red sun disc in haze, and watching for a gap when the horizon is cloudy.
 

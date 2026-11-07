@@ -782,6 +782,91 @@ $("compassBtn").addEventListener("click", async () => {
   else window.addEventListener("deviceorientation", onHeading);
 });
 
+
+/* ---------- service worker and alerts ---------- */
+let swReg = null, swModule = false;
+async function registerWorker() {
+  try { swReg = await navigator.serviceWorker.register("sw.js", { type: "module" }); swModule = true; }
+  catch { try { swReg = await navigator.serviceWorker.register("sw-classic.js"); } catch { /* no offline support */ } }
+  renderAlerts();
+}
+function swCall(msg, ms = 20000) {
+  return new Promise((resolve, reject) => {
+    const target = (swReg && swReg.active) || navigator.serviceWorker.controller;
+    if (!target) { reject(new Error("no-worker")); return; }
+    const ch = new MessageChannel(), timer = setTimeout(() => reject(new Error("timeout")), ms);
+    ch.port1.onmessage = ev => { clearTimeout(timer); resolve(ev.data); };
+    target.postMessage(msg, [ch.port2]);
+  });
+}
+const CONFIG_URL = () => new URL("__alert-config", (swReg && swReg.scope) || location.href).href;
+async function alertConfig() {
+  try { const r = await (await caches.open("wib-config")).match(CONFIG_URL()); return r ? await r.json() : null; } catch { return null; }
+}
+async function saveAlertConfig(cfg) {
+  await (await caches.open("wib-config")).put(CONFIG_URL(), new Response(JSON.stringify(cfg), { headers: { "Content-Type": "application/json" } }));
+}
+function alertSupport() {
+  if (!("serviceWorker" in navigator) || !swReg) return "no-worker";
+  if (!swModule) return "no-module";
+  if (!("periodicSync" in swReg)) return "no-periodic";
+  if (!("Notification" in window)) return "no-notifications";
+  return "ok";
+}
+async function renderAlerts() {
+  document.querySelectorAll(".kindWord").forEach(x => x.textContent = state.kind);
+  const cfg = await alertConfig(), on = !!(cfg && cfg.enabled);
+  $("alertOn").hidden = false; $("alertOn").textContent = on ? "Update alert" : "Turn on alerts";
+  $("alertOff").hidden = !on; $("alertTest").hidden = !on;
+  $("alertBadge").textContent = on ? "(on)" : "";
+  if (on) {
+    $("alertThreshold").value = String(cfg.threshold);
+    const last = cfg.lastCheck ? ` Last background check: ${ago(Date.now() - cfg.lastCheck.at)} (score ${cfg.lastCheck.score}).` : "";
+    $("alertStatus").textContent = `On: ${cfg.kind}s at ${cfg.place.name} scoring ${cfg.threshold}+.${last}`;
+  } else if (alertSupport() !== "ok" && swReg) {
+    $("alertStatus").textContent = "Background alerts need Chrome on Android, with the app installed (menu → Install app). On other phones, use Add to calendar for promising evenings.";
+  } else $("alertStatus").textContent = "";
+}
+$("alertOn").addEventListener("click", async () => {
+  const sup = alertSupport();
+  if (sup !== "ok") { await renderAlerts(); if (!$("alertStatus").textContent) $("alertStatus").textContent = "Alerts aren't supported on this phone or browser."; return; }
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") { $("alertStatus").textContent = "Notifications are blocked. Allow them for this app in your phone's settings, then try again."; return; }
+  try {
+    const st = await navigator.permissions.query({ name: "periodic-background-sync" });
+    if (st.state !== "granted") {
+      $("alertStatus").textContent = "Install the app first: in Chrome, open the ⋮ menu and choose Install app (or Add to home screen). Then open it from your home screen and turn alerts on.";
+      return;
+    }
+    await swReg.periodicSync.register("wib-alert", { minInterval: 6 * 3600 * 1000 });
+  } catch {
+    $("alertStatus").textContent = "Your browser didn't allow background checks. Install the app from Chrome's menu, then try again.";
+    return;
+  }
+  const p = state.place, old = await alertConfig();
+  await saveAlertConfig({
+    enabled: true, kind: state.kind, threshold: Number($("alertThreshold").value),
+    place: { name: p.label || p.name, lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) },
+    notified: (old && old.notified) || [], lastCheck: old && old.lastCheck,
+  });
+  await renderAlerts();
+  $("alertStatus").textContent += " Your phone decides exactly when to check, usually a few times a day.";
+});
+$("alertOff").addEventListener("click", async () => {
+  try { if (swReg && swReg.periodicSync) await swReg.periodicSync.unregister("wib-alert"); } catch { /* ignore */ }
+  const cfg = await alertConfig(); if (cfg) { cfg.enabled = false; await saveAlertConfig(cfg); }
+  await renderAlerts(); $("alertStatus").textContent = "Alerts are off.";
+});
+$("alertTest").addEventListener("click", async () => {
+  $("alertStatus").textContent = "Checking the forecast…";
+  try {
+    const r = await swCall({ type: "check-now", force: true });
+    $("alertStatus").textContent = r.status === "notified" ? `Test alert sent (score ${r.score}). Check your notifications.`
+      : r.status === "fetch-failed" ? "Couldn't reach the forecast. Try again." : `Check finished: ${r.status}.`;
+  } catch { $("alertStatus").textContent = "The background worker isn't ready yet. Reload the app and try again."; }
+});
+$("alertCard").addEventListener("toggle", () => { if ($("alertCard").open) renderAlerts(); });
+
 /* ---------- flow ---------- */
 /* forecast cache: a few recent places, so the app opens instantly and works offline */
 const FRESH_MS = 15 * 60 * 1000;
@@ -903,7 +988,7 @@ $("placeBtn").addEventListener("click", () => openPicker());
 
 /* ---------- start ---------- */
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  window.addEventListener("load", registerWorker);
 }
 $("modelVersion").textContent = M.MODEL_VERSION;
 try { localStorage.removeItem("wib-last"); } catch { /* old cache format */ }
