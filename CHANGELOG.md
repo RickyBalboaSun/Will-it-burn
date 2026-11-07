@@ -1,5 +1,9 @@
 # App changelog
 
+## 2026-11-07 – v2.1
+- **Installable**: add it to your home screen and it opens full-screen like an app, with its own sunset icon.
+- **Works offline**: the app opens without signal, and shows the last forecast for that place (marked "Offline") if a new one can't be loaded. Useful at remote viewpoints.
+
 ## 2026-11-07 – v2
 - **7-day outlook**: scores for the next seven sunsets (or sunrises), with the best evening marked. Tap a day to see its details.
 - **Sunrise mode**: same model, facing east.

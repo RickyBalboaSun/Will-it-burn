@@ -201,12 +201,26 @@ async function refresh() {
   const place = state.place;
   loading(state.kind === "sunset" ? "Checking the sky…" : "Checking the morning sky…");
   try {
-    const d = await loadForecast(place, state.kind);
+    let d, offlineAt = null;
+    const key = `${place.lat.toFixed(3)},${place.lon.toFixed(3)},${state.kind}`;
+    try {
+      d = await loadForecast(place, state.kind);
+      store.set("wib-last", { key, at: Date.now(), d });
+    } catch (err) {
+      const last = store.get("wib-last");
+      if (!last || last.key !== key) throw err;
+      d = last.d; offlineAt = last.at;
+    }
     if (place !== state.place) return;
     const events = scoreEvents(d);
     if (!events.length) throw new Error("no-event");
     state.data = d; state.events = events; state.sel = 0;
     renderPlace(place); renderSelected(); show("result");
+    $("offline").hidden = !offlineAt;
+    if (offlineAt) {
+      const t = new Date(offlineAt);
+      $("offline").textContent = `Offline · forecast from ${t.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
+    }
   } catch (e) {
     openPicker(e.message === "no-event"
       ? `There's no ${state.kind} here in the next week. Try another place.`
@@ -275,6 +289,9 @@ $("gpsBtn").addEventListener("click", locate);
 $("placeBtn").addEventListener("click", () => openPicker());
 
 /* ---------- start ---------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
 $("modelVersion").textContent = M.MODEL_VERSION;
 setKindButtons();
 const saved = store.get("wib-place");
