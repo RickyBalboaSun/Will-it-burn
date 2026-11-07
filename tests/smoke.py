@@ -124,7 +124,7 @@ def main():
             ctx.route("**/cdnjs.cloudflare.com/ajax/libs/leaflet/**", lambda r: r.fulfill(status=200,
                 path=f"{LEAFLET}/leaflet.css" if r.request.url.endswith(".css") else f"{LEAFLET}/leaflet.js",
                 content_type="text/css" if r.request.url.endswith(".css") else "application/javascript"))
-            ctx.route("**/*basemaps.cartocdn.com/**", lambda r: r.fulfill(status=200, body=TILE, content_type="image/png"))
+            ctx.route("**/tile.openstreetmap.org/**", lambda r: r.fulfill(status=200, body=TILE, content_type="image/png"))
             pg = ctx.new_page()
             pg.on("pageerror", lambda e: errors.append(str(e)))
             pg.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and errors.append(m.text))

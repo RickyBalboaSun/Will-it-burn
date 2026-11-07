@@ -259,3 +259,6 @@ body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 .photo-meta { font-size: 13px; opacity: 0.9; margin: -2px 0 10px; min-height: 0; }
 .linkbtn-solid { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .badge-ok { display: inline-block; font-size: 11px; font-weight: 600; color: #14532d; background: #d8f5e3; border-radius: 999px; padding: 2px 7px; margin-left: 6px; }
+
+/* Darken OpenStreetMap tiles to suit the theme */
+.dark-tiles{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.85) saturate(.6)}

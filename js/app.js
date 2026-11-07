@@ -357,6 +357,9 @@ $("conf").addEventListener("click", () => { $("details").open = true; $("details
 
 /* ---------- light path map ---------- */
 let leafletReady = null, map = null, mapLayer = null;
+/* OpenStreetMap tiles (CARTO now needs an API key). Darkened in CSS to match the theme. */
+const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 function loadLeaflet() {
   if (leafletReady) return leafletReady;
   leafletReady = new Promise((resolve, reject) => {
@@ -379,9 +382,8 @@ async function drawMap() {
   const d = state.data, e = state.events[state.sel], p = state.place;
   if (!map) {
     map = L.map("map", { zoomControl: false, attributionControl: true });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 18, subdomains: "abcd",
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    L.tileLayer(TILE_URL, {
+      maxZoom: 18, className: "dark-tiles", attribution: TILE_ATTR,
     }).addTo(map);
   }
   if (mapLayer) mapLayer.remove();
@@ -693,9 +695,12 @@ $("scanBtn").addEventListener("click", async () => {
     const here = scored.find(x => x.dist === 0);
     scored.sort((a, b) => b.score - a.score);
     const best = scored[0];
-    $("nearStatus").innerHTML = !here ? "" : best.dist === 0 || best.score - here.score < 8
-      ? `<b>You're already in a good spot.</b> Nowhere within ${R} km scores clearly better than here (${here.score}).`
-      : `<b>${best.dist} km ${best.dir} looks better:</b> ${best.score} vs ${here.score} here.`;
+    const spread = best.score - Math.min(...scored.map(x => x.score));
+    $("nearStatus").innerHTML = !here ? ""
+      : best.dist !== 0 && best.score - here.score >= 8 ? `<b>${best.dist} km ${best.dir} looks better:</b> ${best.score} vs ${here.score} here.`
+      : spread < 5 ? `<b>Much the same everywhere within ${R} km</b> (around ${here.score}), so there's no need to travel for this one.`
+      : here.score >= 50 ? `<b>You're already in a good spot.</b> Nowhere within ${R} km scores clearly better than here (${here.score}).`
+      : `<b>Nowhere nearby is clearly better</b> than here (${here.score}).`;
     $("nearList").innerHTML = scored.slice(0, 6).map(x => `
       <button class="near-item" data-lat="${x.lat}" data-lon="${x.lon}" data-name="${x.dist ? `${x.dist} km ${x.dir}` : "Here"}">
         <span>${x.dist ? `${x.dist} km ${x.dir}` : "Where you are"}<br><small>${x.verdict}${x.dist ? " · tap to check it" : ""}</small></span>
@@ -746,8 +751,7 @@ async function drawNearMap(scored, p) {
   $("nearMap").hidden = false;
   if (!nearMap) {
     nearMap = L.map("nearMap", { zoomControl: false });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 18, subdomains: "abcd",
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' }).addTo(nearMap);
+    L.tileLayer(TILE_URL, { maxZoom: 18, className: "dark-tiles", attribution: TILE_ATTR }).addTo(nearMap);
   }
   if (nearLayer) nearLayer.remove();
   nearLayer = L.layerGroup().addTo(nearMap);
