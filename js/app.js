@@ -1,4 +1,5 @@
 import * as M from "./model.js";
+import * as V from "./visuals.js";
 
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -98,6 +99,7 @@ function scoreEvents(d) {
 /* ---------- rendering ---------- */
 function show(which) {
   for (const id of ["loading", "picker", "result"]) $(id).hidden = id !== which;
+  $("tabbar").hidden = which !== "result";
 }
 function loading(text) { $("loadingText").textContent = text; show("loading"); }
 
@@ -129,44 +131,6 @@ function drawSky() {
   const glow = g.createRadialGradient(W / 2, horizon, 0, W / 2, horizon, H * 0.55);
   glow.addColorStop(0, `rgba(255,190,110,${0.15 + 0.45 * lit})`); glow.addColorStop(1, "rgba(255,190,110,0)");
   g.fillStyle = glow; g.fillRect(0, 0, W, H);
-  // high cloud: thin wisps near the top
-  const nHigh = Math.round((inp.cHigh || 0) / 100 * 16);
-  for (let i = 0; i < nHigh; i++) {
-    const y = H * (0.04 + rand() * 0.3), x = rand() * W, w = W * (0.25 + rand() * 0.4), h = 3 + rand() * 6;
-    g.save(); g.translate(x, y); g.rotate((rand() - 0.5) * 0.25);
-    g.fillStyle = mix("9a9cab", "ffc2b0", lit); g.globalAlpha = 0.18 + 0.3 * rand();
-    g.beginPath(); g.ellipse(0, 0, w / 2, h, 0, 0, Math.PI * 2); g.fill(); g.restore();
-  }
-  // mid cloud: flattened rafts of cloudlets, lit from below (altocumulus-like)
-  const nMid = Math.round((inp.cMid || 0) / 100 * 20);
-  for (let i = 0; i < nMid; i++) {
-    const cx = rand() * W * 1.2 - W * 0.1, cy = H * (0.2 + rand() * 0.42), size = 10 + rand() * 16, n = 4 + Math.floor(rand() * 5);
-    for (let k = 0; k < n; k++) {
-      const px = cx + (k - n / 2) * size * 1.5 + (rand() - 0.5) * size, py = cy + (rand() - 0.5) * size * 0.6;
-      const rx = size * (1.2 + rand() * 0.9), ry = size * (0.38 + rand() * 0.22);
-      const cg = g.createLinearGradient(0, py - ry, 0, py + ry);
-      cg.addColorStop(0, mix("5e6070", "6b4a78", lit)); cg.addColorStop(0.55, mix("7a7c8a", "c45a7a", lit)); cg.addColorStop(1, mix("8d8f9c", "ff8a66", lit));
-      g.fillStyle = cg; g.globalAlpha = 0.5 + 0.2 * rand();
-      g.beginPath(); g.ellipse(px, py, rx, ry, (rand() - 0.5) * 0.15, 0, Math.PI * 2); g.fill();
-    }
-  }
-  // low cloud overhead: dark, unlit
-  const nLow = Math.round((inp.low || 0) / 100 * 14);
-  for (let i = 0; i < nLow; i++) {
-    const cx = rand() * W, cy = H * (0.55 + rand() * 0.3), r = 30 + rand() * 40;
-    g.fillStyle = "#3a3844"; g.globalAlpha = 0.55;
-    g.beginPath(); g.ellipse(cx, cy, r * 1.8, r * 0.7, 0, 0, Math.PI * 2); g.fill();
-  }
-  // cloud bank on the horizon if the light path is blocked
-  const bank = 1 - f.path;
-  if (bank > 0.05) {
-    g.globalAlpha = 0.85; g.fillStyle = "#34323d";
-    for (let x = -20; x < W + 40; x += 34) {
-      const r = 26 + rand() * 22;
-      g.beginPath(); g.arc(x, horizon - bank * 50 + rand() * 10, r, 0, Math.PI * 2); g.fill();
-    }
-    g.fillRect(0, horizon - bank * 50, W, H);
-  }
   g.globalAlpha = 1;
   // ground
   g.fillStyle = "#14111b"; g.fillRect(0, horizon, W, H - horizon);
@@ -175,6 +139,10 @@ function drawSky() {
 }
 addEventListener("resize", () => { clearTimeout(drawSky.t); drawSky.t = setTimeout(drawSky, 150); });
 
+$("locToggle").addEventListener("click", () => {
+  const open = $("locMore").hidden;
+  $("locMore").hidden = !open; $("locToggle").setAttribute("aria-expanded", String(open));
+});
 function renderPlace(place) {
   $("placeBtn").hidden = false;
   $("locName").textContent = place.label || place.name;
@@ -182,7 +150,6 @@ function renderPlace(place) {
   const acc = place.accuracy ? ` · ±${place.accuracy < 1000 ? Math.round(place.accuracy) + " m" : (place.accuracy / 1000).toFixed(1) + " km"}` : "";
   const parts = [place.detail, (place.gps ? "GPS " : "") + coords + acc].filter(Boolean);
   const map = `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lon}`;
-  delete $("locSub").dataset.elev;
   $("locSub").innerHTML = parts.map(esc).join("<br>") + ` · <a href="${map}" target="_blank" rel="noopener">View on map</a>`;
   const warn = place.accuracy && place.accuracy > 1000;
   $("locWarn").hidden = !warn;
@@ -223,6 +190,14 @@ function renderSelected() {
   };
   clearInterval(countdownTimer); tick(); countdownTimer = setInterval(tick, 30000);
 
+  // window view (B) and side slice (A)
+  e.layers = V.layersAt(d.locations, e.model, e.t);
+  const peak = kind === "sunset" ? 10 : -10;
+  if (state.sliderFor !== e.t) { $("timeSlider").value = String(peak); state.sliderFor = e.t; }
+  $("timeSlider").setAttribute("aria-label", kind === "sunset" ? "Minutes from sunset" : "Minutes from sunrise");
+  renderScene();
+  $("slice").innerHTML = V.sliceSVG({ e, layers: e.layers, kind });
+
   // what to look for
   $("tips").innerHTML = M.lookFor(e, kind, d.az).map(x => `<div class="tip"><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div>`).join("");
 
@@ -238,8 +213,8 @@ function renderSelected() {
   $("week").innerHTML = state.events.map((x, i) => `
     <button class="day ${i === state.sel ? "on" : ""}" data-i="${i}" aria-label="${esc(dayName(x.t, off, kind))}: ${x.score}">
       <span class="d">${esc(shortDay(x.t, off))}</span>
+      ${V.miniStack(x)}
       <span class="s">${x.score}</span>
-      <span class="bar" style="background:${scoreColour(x.score)}"></span>
       <span class="best">${i === best && x.score >= 25 ? "Best" : ""}</span>
     </button>`).join("");
 
@@ -280,6 +255,20 @@ function renderConfidence() {
       : c.level === "Medium" ? "The models partly disagree. Check again nearer the time."
       : "The models disagree a lot. Treat this score as a rough guess and check again later."}`;
 }
+/* ---------- window view with time slider ---------- */
+function renderScene() {
+  const d = state.data, e = state.events[state.sel];
+  if (!d || !e || !e.layers) return;
+  const m = Number($("timeSlider").value), t = e.t + m * 60;
+  const sunElev = M.solarPosition(state.place.lat, state.place.lon, t).elevation;
+  $("scene").innerHTML = V.windowSVG({ e, layers: e.layers, kind: d.kind, az: d.az, minutes: m, sunElev });
+  const word = d.kind === "sunset" ? "sunset" : "sunrise";
+  const g = V.glowCurve(m, d.kind);
+  const rel = m === 0 ? `At ${word}` : `${Math.abs(m)} min ${m > 0 ? "after" : "before"} ${word}`;
+  $("sliderLabel").textContent = `${rel} (${clock(t, d.offset)})${g >= 0.99 && e.factors.path >= 0.5 ? ": peak colour" : ""}`;
+}
+$("timeSlider").addEventListener("input", renderScene);
+
 /* ---------- cloud timeline chart ---------- */
 const SERIES = [
   { key: "cloud_cover_mid", loc: [0, 1], label: "Mid cloud overhead", col: "#ff9a7a" },
@@ -330,8 +319,8 @@ function renderElevation() {
       ? `High viewpoint (${Math.round(elev).toLocaleString()} m): some of the "low" cloud may be above you and light up, so this score may be too low.`
       : `High viewpoint (${Math.round(elev).toLocaleString()} m): if low cloud forms, it may light up rather than block the view.`;
   }
-  const sub = $("locSub");
-  if (elev != null && !sub.dataset.elev) { sub.insertAdjacentHTML("beforeend", ` · ${Math.round(elev).toLocaleString()}&nbsp;m`); sub.dataset.elev = "1"; }
+  $("locElev").textContent = elev != null ? `· ${Math.round(elev).toLocaleString()} m` : "";
+  $("locFlag").hidden = el.hidden && $("locWarn").hidden && $("terrainNote").hidden;
 }
 
 $("conf").addEventListener("click", () => { $("details").open = true; $("details").scrollIntoView({ behavior: "smooth", block: "start" }); });
@@ -500,6 +489,7 @@ $("rateCopy").addEventListener("click", () => {
 function renderLog() {
   const log = logAll();
   $("logCard").hidden = !log.length;
+  $("logEmpty").hidden = !!log.length;
   $("logCount").textContent = log.length ? `(${log.length})` : "";
   $("logList").innerHTML = log.map(x => `
     <div class="log-item">
@@ -578,28 +568,28 @@ async function renderSpots() {
   } catch { list.forEach((_, i) => { const el = $("spotScore" + i); if (el) el.textContent = ""; }); }
 }
 async function renderMySpots() {
-  const list = spotsAll().filter(x => !sameSpot(x, state.place)).slice(0, 8);
-  $("mySpotsCard").hidden = !list.length || state.past;
-  if (!list.length || state.past) return;
-  const kind = state.kind;
+  const list = spotsAll().slice(0, 12);
+  $("mySpotsEmpty").hidden = !!list.length;
   $("mySpots").innerHTML = list.map((sp, i) => `
-    <button class="day spotchip" data-i="${i}"><span class="d">${esc(sp.name)}</span><span class="s" id="ms${i}">…</span><span class="best" id="msw${i}"></span></button>`).join("");
+    <button class="spot-item" data-i="${i}"><span id="msi${i}" class="ms-slot"></span><span>${esc(sp.name)}<small id="msw${i}">${esc(sp.detail || `${sp.lat}, ${sp.lon}`)}</small></span><span class="ss" id="ms${i}">…</span></button>`).join("");
+  if (!list.length) return;
+  const kind = state.kind;
   try {
     const scored = await scoreSpots(list, kind);
     if (kind !== state.kind) return;
     scored.forEach((sp, i) => {
       const el = $("ms" + i); if (!el) return;
       el.textContent = sp.score ?? "–"; el.style.color = sp.score != null ? scoreColour(sp.score) : "";
-      if (sp.t) $("msw" + i).textContent = shortDay(sp.t, sp.offset);
+      if (sp.score != null) { $("msi" + i).innerHTML = V.miniStack(sp); $("msw" + i).textContent = `${dayName(sp.t, sp.offset, kind)} · ${sp.verdict}`; }
     });
   } catch { list.forEach((_, i) => { const el = $("ms" + i); if (el) el.textContent = "–"; }); }
-  $("mySpots").onclick = ev => {
-    const b = ev.target.closest(".spotchip"); if (!b) return;
-    const sp = list[Number(b.dataset.i)];
-    run({ name: sp.name, label: sp.name, detail: sp.detail, lat: sp.lat, lon: sp.lon });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
 }
+$("mySpots").addEventListener("click", ev => {
+  const b = ev.target.closest(".spot-item"); if (!b) return;
+  const sp = spotsAll()[Number(b.dataset.i)];
+  run({ name: sp.name, label: sp.name, detail: sp.detail, lat: sp.lat, lon: sp.lon });
+  showTab("tonight");
+});
 
 $("spotList").addEventListener("click", ev => {
   const b = ev.target.closest(".spot-row"); if (!b) return;
@@ -664,7 +654,7 @@ $("nearList").addEventListener("click", ev => {
   const label = b.dataset.place ? `Near ${b.dataset.place}` : `${b.dataset.name} of ${base}`;
   const detail = b.dataset.place ? `${b.dataset.name} of ${base.replace(/^Near /, "")}` : "";
   run({ name: label, label, detail, lat: Number(b.dataset.lat), lon: Number(b.dataset.lon) });
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  showTab("tonight");
 });
 async function drawNearMap(scored, p) {
   let L; try { L = await loadLeaflet(); } catch { return; }
@@ -730,9 +720,9 @@ $("pastGo").addEventListener("click", async () => {
     const { d, e } = await loadPast(state.place, state.kind, v);
     state.live = state.live || { data: state.data, events: state.events, sel: state.sel };
     state.past = true; state.data = d; state.events = [e]; state.sel = 0;
-    $("pastStatus").textContent = ""; $("pastCard").open = false;
+    $("pastStatus").textContent = "";
     applyPastUi(); renderSelected(); renderRate();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    showTab("tonight");
   } catch (err) {
     $("pastStatus").textContent = err.message === "no-event" ? `There was no ${state.kind} here that day.`
       : "Couldn't get archived data for that date. Try another date.";
@@ -740,7 +730,6 @@ $("pastGo").addEventListener("click", async () => {
 });
 function applyPastUi() {
   $("pastBar").hidden = !state.past;
-  if (state.past) $("mySpotsCard").hidden = true;
   $("weekCard").hidden = state.past;
   $("nearCard").hidden = state.past;
   $("countdown").hidden = state.past;
@@ -970,7 +959,6 @@ function showForecast(place, d, at, mode) {
   $("offline").hidden = mode !== "offline";
   if (mode === "offline") $("offline").textContent = `Offline · forecast from ${ago(Date.now() - at)}`;
   renderUpdated(mode === "updating");
-  if (mode !== "updating") renderMySpots();
 }
 function renderUpdated(updating) {
   $("updated").textContent = updating ? "Updating…" : state.updatedAt ? `Updated ${ago(Date.now() - state.updatedAt)}` : "";
@@ -1071,6 +1059,19 @@ $("searchForm").addEventListener("submit", async e => {
 $("gpsBtn").addEventListener("click", locate);
 $("placeBtn").addEventListener("click", () => openPicker());
 
+/* ---------- tabs ---------- */
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.hidden = t.dataset.tab !== name);
+  document.querySelectorAll(".tabbar button").forEach(b => { b.classList.toggle("on", b.dataset.go === name); b.setAttribute("aria-current", b.dataset.go === name ? "page" : "false"); });
+  window.scrollTo(0, 0);
+  if (name === "spots") renderMySpots();
+  if (name === "log") renderLog();
+  if (name === "more") renderAlerts();
+}
+$("tabbar").addEventListener("click", e => { const b = e.target.closest("button[data-go]"); if (b) showTab(b.dataset.go); });
+$("howBtn2").addEventListener("click", () => $("how").showModal());
+$("newBtn").addEventListener("click", () => $("whatsNew").showModal());
+
 /* ---------- start ---------- */
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", registerWorker);
@@ -1079,7 +1080,7 @@ $("modelVersion").textContent = M.MODEL_VERSION;
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "3.9";
+const RELEASE = "4.1";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

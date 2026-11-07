@@ -1,5 +1,12 @@
 # App changelog
 
+## 2026-11-07 – v4.1
+- **New layout**: Tonight · Spots · Log · More tabs; the main screen keeps only the answer, the week, what to look for and when to watch.
+- **Window view** (the visual predictor): a cartoon of the view facing the sun, drawn from the forecast (cloud in each layer, the light path, the sun's real height), with a time slider from 30 minutes before to 30 after.
+- **Side slice** at the top of "Why this score": the clouds between you and the sun at 0–250 km, and whether the sunbeam gets through.
+- **Mini sky stacks** in the week strip and the Spots list.
+- One-line location (tap for details, elevation and notes); bigger rating buttons; stronger text contrast; the background is now a plain gradient (the pictures carry the clouds).
+
 ## 2026-11-07 – v4.0 (model 1.2.0)
 - **The score is now the median of three weather models** (European ECMWF, American GFS, German ICON), each scored separately. The confidence range always includes the headline score, and "Why this score" says which model the breakdown comes from. One forecast request instead of two.
 - **Honest labels**: a clear sky with nothing to light up now says "Clear: simple glow" instead of "Some colour possible".

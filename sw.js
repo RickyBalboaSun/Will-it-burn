@@ -2,10 +2,10 @@
 // Browsers that can't run module service workers get sw-classic.js (offline only).
 import * as M from "./js/model.js";
 
-const CACHE = "wib-shell-v5";
+const CACHE = "wib-shell-v6";
 const CONFIG_CACHE = "wib-config";
 const CONFIG_URL = "./__alert-config";
-const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/model.js", "manifest.webmanifest",
+const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/model.js", "js/visuals.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/apple-touch-icon.png", "icons/favicon-32.png"];
 
 self.addEventListener("install", e => {

@@ -40,7 +40,7 @@ export function verdictFor(score, f = null) {
 }
 
 /** One-line key for the 0–100 scale. */
-export const SCALE_KEY = "Under 25 poor · 25–49 some colour · 50–74 worth going out · 75+ fire";
+export const SCALE_KEY = "Under 25 poor · 25+ some colour · 50+ good · 75+ fire";
 
 /**
  * Score one event. S maps distance_km -> { variable: value at the event time }.

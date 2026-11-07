@@ -50,24 +50,33 @@
 
   <!-- result -->
   <main id="result" hidden>
+    <div class="tab" id="tab-tonight" data-tab="tonight">
     <div class="seg" role="tablist" aria-label="Sunset or sunrise">
       <button id="kindSunset" class="on" role="tab">Sunset</button>
       <button id="kindSunrise" role="tab">Sunrise</button>
     </div>
-
     <div class="loc" id="loc">
-      <div class="loc-name" id="locName"></div>
-      <div class="loc-sub" id="locSub"></div>
-      <div class="loc-warn" id="locWarn" hidden></div>
-      <div class="loc-warn" id="elevWarn" hidden></div>
-      <button class="save-spot" id="saveSpot" hidden>☆ Save this spot</button>
+      <button class="loc-line" id="locToggle" aria-expanded="false" aria-controls="locMore">
+        <span class="loc-name" id="locName"></span><span class="loc-elev" id="locElev"></span><span class="loc-flag" id="locFlag" hidden>ⓘ</span><span class="chev" aria-hidden="true">▾</span>
+      </button>
+      <div class="loc-more" id="locMore" hidden>
+        <div class="loc-sub" id="locSub"></div>
+        <div class="loc-warn" id="locWarn" hidden></div>
+        <div class="loc-warn" id="elevWarn" hidden></div>
+        <div class="loc-warn" id="terrainNote" hidden></div>
+        <button class="save-spot" id="saveSpot" hidden>☆ Save this spot</button>
+      </div>
     </div>
-
     <section class="hero" aria-live="polite">
       <div class="when" id="when"></div>
       <div class="score"><span id="score"></span><small>/100</small></div>
       <div class="verdict" id="verdict"></div>
       <div class="scale-key" id="scaleKey"></div>
+      <figure class="scene" id="scene"></figure>
+      <div class="slider-row">
+        <input type="range" id="timeSlider" min="-30" max="30" step="1" value="10" aria-label="Minutes from sunset">
+        <div class="slider-label" id="sliderLabel"></div>
+      </div>
       <div class="countdown" id="countdown"></div>
       <div class="offline" id="offline" hidden></div>
       <button class="conf" id="conf" hidden></button>
@@ -80,7 +89,6 @@
       <div class="rate-msg" id="shareMsg"></div>
       <div class="updated"><span id="updated"></span> · <button class="linkbtn" id="refreshBtn">Refresh</button></div>
     </section>
-
     <section class="card rate" id="rateCard" hidden>
       <h2 id="rateTitle">How was it?</h2>
       <div class="rate-sub" id="rateSub"></div>
@@ -93,22 +101,14 @@
       </div>
       <div class="rate-msg" id="rateMsg"></div>
     </section>
-
     <section class="card" id="weekCard">
       <h2 id="weekTitle">The week ahead</h2>
       <div class="week" id="week"></div>
     </section>
-
-    <section class="card" id="mySpotsCard" hidden>
-      <h2>Your spots</h2>
-      <div class="week" id="mySpots"></div>
-    </section>
-
     <section class="card">
       <h2>What to look for</h2>
       <div class="tips" id="tips"></div>
     </section>
-
     <section class="card">
       <h2>When to watch</h2>
       <div class="times" id="times"></div>
@@ -123,8 +123,78 @@
       </div>
       <div class="rate-msg" id="timesMsg"></div>
     </section>
+    <details class="card" id="mapCard">
+      <summary>Light path map</summary>
+      <div class="detail-body">
+        <div id="map" class="map" role="img" aria-label="Map of the sky being judged"></div>
+        <div class="legend"><span><i style="background:#7ee08a"></i>Clear</span><span><i style="background:#ffd166"></i>Some cloud</span><span><i style="background:#9a9aa8"></i>Cloudy</span></div>
+        <div class="note" id="mapNote"></div>
+      </div>
+    </details>
+    <details class="card" id="details">
+      <summary>Why this score</summary>
+      <div class="detail-body">
+        <figure class="slice" id="slice"></figure>
+        <div class="slice-key"><span><i style="background:#ff8f7a"></i>Will glow</span><span><i style="background:#8e8a9c"></i>Grey: no light reaches it</span><span><i style="background:#4a4556"></i>Low cloud</span><span><i style="background:#ffcf6b"></i>Sunlight</span></div>
+        <div class="conf-detail" id="confDetail" hidden></div>
+        <div id="detailBody" style="display:grid;gap:10px"></div>
+        <div class="tl-title">Cloud through the evening</div>
+        <canvas id="timeline" class="timeline" role="img" aria-label="Chart of forecast cloud cover around the event"></canvas>
+        <div class="tl-legend" id="tlLegend"></div>
+      </div>
+    </details>
+    </div>
 
-    <details class="card" id="alertCard">
+    <div class="tab" id="tab-spots" data-tab="spots" hidden>
+      <h1 class="tab-title">Spots</h1>
+    <section class="card" id="mySpotsCard">
+      <h2>Your spots</h2>
+      <div class="spot-list" id="mySpots"></div>
+      <div class="empty" id="mySpotsEmpty">Save a spot from the location line on the Tonight tab (tap the place name). Saved spots show their next score here.</div>
+    </section>
+    <details class="card" id="nearCard" open>
+      <summary>Find a better spot nearby</summary>
+      <div class="detail-body">
+        <div class="note" style="margin-top:0">Scores 17 places in rings around you for the same sunset, to see if a short trip would give a better show.</div>
+        <div class="row">
+          <button class="btn small ghost radius on" data-r="25">Within 25 km</button>
+          <button class="btn small ghost radius" data-r="50">Within 50 km</button>
+        </div>
+        <button class="btn small" id="scanBtn">Scan nearby</button>
+        <div class="near-status" id="nearStatus"></div>
+        <div id="nearMap" class="map" hidden></div>
+        <div class="near-list" id="nearList"></div>
+      </div>
+    </details>
+    </div>
+
+    <div class="tab" id="tab-log" data-tab="log" hidden>
+      <h1 class="tab-title">Log</h1>
+      <div class="card empty" id="logEmpty">No ratings yet. After a sunset, the Tonight tab asks how it was.</div>
+    <details class="card" id="logCard" open hidden>
+      <summary>Your sunset log <span class="count" id="logCount"></span></summary>
+      <div class="detail-body">
+        <div id="logList"></div>
+        <button class="btn small ghost" id="logCopyAll">Copy all for Claude</button>
+        <div class="rate-msg" id="logMsg"></div>
+      </div>
+    </details>
+    <details class="card" id="pastCard" open>
+      <summary>Check a past date</summary>
+      <div class="detail-body">
+        <div class="note" style="margin-top:0">See what the app would have predicted for an earlier sunset or sunrise here. Then rate it, to add your old photos to the log.</div>
+        <div class="row">
+          <input class="field" type="date" id="pastDate" style="flex:1;min-height:44px;font-size:16px;padding:8px 12px">
+          <button class="btn small" id="pastGo" style="flex:0 0 auto">Check</button>
+        </div>
+        <div class="near-status" id="pastStatus"></div>
+      </div>
+    </details>
+    </div>
+
+    <div class="tab" id="tab-more" data-tab="more" hidden>
+      <h1 class="tab-title">More</h1>
+    <details class="card" id="alertCard" open>
       <summary>Alerts <span class="count" id="alertBadge"></span></summary>
       <div class="detail-body">
         <div class="note" style="margin-top:0" id="alertIntro">Get a notification when a good <span class="kindWord">sunset</span> is forecast here. Your phone checks in the background a few times a day, with no account needed.</div>
@@ -143,63 +213,19 @@
         <div class="near-status" id="alertStatus"></div>
       </div>
     </details>
-
-    <details class="card" id="pastCard">
-      <summary>Check a past date</summary>
-      <div class="detail-body">
-        <div class="note" style="margin-top:0">See what the app would have predicted for an earlier sunset or sunrise here. Then rate it, to add your old photos to the log.</div>
-        <div class="row">
-          <input class="field" type="date" id="pastDate" style="flex:1;min-height:44px;font-size:16px;padding:8px 12px">
-          <button class="btn small" id="pastGo" style="flex:0 0 auto">Check</button>
-        </div>
-        <div class="near-status" id="pastStatus"></div>
-      </div>
-    </details>
-
-    <details class="card" id="nearCard">
-      <summary>Find a better spot nearby</summary>
-      <div class="detail-body">
-        <div class="note" style="margin-top:0">Scores 17 places in rings around you for the same sunset, to see if a short trip would give a better show.</div>
-        <div class="row">
-          <button class="btn small ghost radius on" data-r="25">Within 25 km</button>
-          <button class="btn small ghost radius" data-r="50">Within 50 km</button>
-        </div>
-        <button class="btn small" id="scanBtn">Scan nearby</button>
-        <div class="near-status" id="nearStatus"></div>
-        <div id="nearMap" class="map" hidden></div>
-        <div class="near-list" id="nearList"></div>
-      </div>
-    </details>
-
-    <details class="card" id="mapCard">
-      <summary>Light path map</summary>
-      <div class="detail-body">
-        <div id="map" class="map" role="img" aria-label="Map of the sky being judged"></div>
-        <div class="legend"><span><i style="background:#7ee08a"></i>Clear</span><span><i style="background:#ffd166"></i>Some cloud</span><span><i style="background:#9a9aa8"></i>Cloudy</span></div>
-        <div class="note" id="mapNote"></div>
-      </div>
-    </details>
-
-    <details class="card" id="logCard" hidden>
-      <summary>Your sunset log <span class="count" id="logCount"></span></summary>
-      <div class="detail-body">
-        <div id="logList"></div>
-        <button class="btn small ghost" id="logCopyAll">Copy all for Claude</button>
-        <div class="rate-msg" id="logMsg"></div>
-      </div>
-    </details>
-
-    <details class="card" id="details">
-      <summary>Why this score</summary>
-      <div class="detail-body">
-        <div class="conf-detail" id="confDetail" hidden></div>
-        <div id="detailBody" style="display:grid;gap:10px"></div>
-        <div class="tl-title">Cloud through the evening</div>
-        <canvas id="timeline" class="timeline" role="img" aria-label="Chart of forecast cloud cover around the event"></canvas>
-        <div class="tl-legend" id="tlLegend"></div>
-      </div>
-    </details>
+      <section class="card">
+        <h2>About</h2>
+        <div class="row"><button class="btn small ghost" id="howBtn2">How it works</button><button class="btn small ghost" id="newBtn">What's new</button></div>
+      </section>
+    </div>
   </main>
+
+  <nav class="tabbar" id="tabbar" hidden aria-label="Sections">
+    <button data-go="tonight" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18M6 18a6 6 0 0 1 12 0M12 6v2M4.9 10.9l1.4 1.4M19.1 10.9l-1.4 1.4"/></svg>Tonight</button>
+    <button data-go="spots"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>Spots</button>
+    <button data-go="log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6zM9 9h6M9 13h6M9 17h4"/></svg>Log</button>
+    <button data-go="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
+  </nav>
 
   <footer class="foot">
     <button class="linkbtn" id="howBtn">How it works</button><br>
@@ -211,13 +237,11 @@
   <form method="dialog"><button class="how-close" aria-label="Close">×</button></form>
   <h2 id="wnTitle">What's new</h2>
   <ul class="wn">
-    <li><b>The week ahead</b>: scores for the next 7 sunsets, with the best one marked. Tap a day.</li>
-    <li><b>Sunrise mode</b>, plus <b>when to watch</b>: golden hour, the best-colour window and when the afterglow fades.</li>
-    <li><b>Forecast confidence</b>: three weather models compared, so you know how far to trust the score.</li>
-    <li><b>Sky preview</b>: the background is drawn from the forecast, with cloud that glows when the sun can reach it.</li>
-    <li><b>Rate a sunset</b> after it happens and <b>copy it for Claude</b>, so your log builds itself.</li>
-    <li><b>Find a better spot nearby</b>, <b>saved spots</b>, a <b>light path map</b> and a <b>"which way?" compass</b>.</li>
-    <li><b>Alerts</b> on Android when a good sunset is coming (install the app first), <b>add to calendar</b>, <b>share</b>, <b>past dates</b>, and offline use.</li>
+    <li><b>A new look</b>: Tonight, Spots, Log and More tabs along the bottom, so the main screen shows just what matters.</li>
+    <li><b>See the sky before you go</b>: a cartoon of the view facing the sunset, drawn from the forecast. Slide to see how the colour builds and fades.</li>
+    <li><b>Why this score</b> now opens with a side-on picture of the clouds between you and the sun, and whether the light gets through.</li>
+    <li><b>Mini skies</b> in the week strip and your spots show each day's cloud at a glance.</li>
+    <li><b>Fairer scores</b>: each forecast is now the middle of three weather models, and clear evenings say "Clear: simple glow".</li>
   </ul>
   <form method="dialog"><button class="btn" style="width:100%;margin-top:6px" autofocus>Let's see</button></form>
 </dialog>
@@ -250,6 +274,7 @@
     <li><b>Dry and clear air</b>: rain and haze wash the colours out.</li>
   </ul>
   <p>The six factors are multiplied together, so one bad factor pulls the whole score down. A clear sky scores about 25: a pleasant glow, but nothing to light up.</p>
+  <p class="small">The pictures are cartoons: the amount of cloud in each layer, the light path and the sun's position come from the forecast, but where each cloud sits in the picture is illustrative.</p>
   <p class="small">Forecasts can be wrong, especially about cloud, so check the confidence and look again nearer the time. Your ratings help tune the model.</p>
 </dialog>
 <script type="module" src="js/app.js"></script>
