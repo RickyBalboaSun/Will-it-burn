@@ -187,3 +187,4 @@ details[open] summary::after { content: "Hide"; }
 .tl-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
 .spotchip { width: 104px; } .spotchip .d { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; padding: 0 4px; }
 .wn { padding-left: 18px; margin: 6px 0 12px; } .wn li { margin: 7px 0; font-size: 14.5px; }
+.scale-key { font-size: 12px; opacity: 0.75; margin-top: 6px; }

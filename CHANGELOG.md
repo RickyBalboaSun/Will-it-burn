@@ -1,5 +1,11 @@
 # App changelog
 
+## 2026-11-07 – v4.0 (model 1.2.0)
+- **The score is now the median of three weather models** (European ECMWF, American GFS, German ICON), each scored separately. The confidence range always includes the headline score, and "Why this score" says which model the breakdown comes from. One forecast request instead of two.
+- **Honest labels**: a clear sky with nothing to light up now says "Clear: simple glow" instead of "Some colour possible".
+- **Scale key** under the score: under 25 poor · 25–49 some colour · 50–74 worth going out · 75+ fire.
+- Alerts, the nearby scan, saved spots and past dates all use the same three-model method.
+
 ## 2026-11-07 – v3.9
 - **What's new** card, shown once after an update, so returning users can find new features.
 

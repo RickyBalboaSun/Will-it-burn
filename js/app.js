@@ -58,7 +58,6 @@ const state = {
   data: null,        // { locations, az, offset, kind }
   events: [],        // scored upcoming events
   sel: 0,
-  models: null,      // multi-model forecast for confidence
   past: false,       // looking back at a past date
   updatedAt: null,
 };
@@ -71,7 +70,7 @@ async function loadForecast(place, kind) {
   const params = new URLSearchParams({
     latitude: pts.map(p => p[0].toFixed(4)).join(","),
     longitude: pts.map(p => p[1].toFixed(4)).join(","),
-    hourly: M.VARS.join(","), daily: "sunset,sunrise",
+    hourly: M.VARS.join(","), daily: "sunset,sunrise", models: M.WEATHER_MODELS.join(","),
     timezone: "auto", timeformat: "unixtime", forecast_days: "8",
   });
   let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params);
@@ -79,37 +78,18 @@ async function loadForecast(place, kind) {
   return { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind };
 }
 
-/** Same points, three independent weather models, to judge forecast confidence. */
-async function loadModels(d) {
-  const params = new URLSearchParams({
-    latitude: d.pts.map(p => p[0].toFixed(4)).join(","),
-    longitude: d.pts.map(p => p[1].toFixed(4)).join(","),
-    hourly: M.VARS.join(","), models: M.CONFIDENCE_MODELS.join(","),
-    timezone: "auto", timeformat: "unixtime", forecast_days: "8",
-  });
-  let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params, 15000);
-  return Array.isArray(data) ? data : [data];
-}
 const MODEL_NAMES = { ecmwf_ifs025: "European (ECMWF)", gfs_seamless: "American (GFS)", icon_seamless: "German (ICON)" };
-
-/** Score an event time with each weather model. Returns [{model, score}] for models with data. */
-function modelScores(locs, t) {
-  const out = [];
-  for (const m of M.CONFIDENCE_MODELS) {
-    const S = M.samplesAt(locs, t, "_" + m);
-    if (M.hasData(S)) out.push({ model: m, score: M.scoreSamples(S).score });
-  }
-  return out;
-}
+/** Value of a forecast variable for the model whose breakdown is shown (the median model). */
+const mv = (loc, key, e, t) => M.valueAt(loc, `${key}_${e.model}`, t ?? e.t);
 
 function scoreEvents(d) {
   const now = Date.now() / 1000;
-  const times = (d.locations[0].daily[d.kind] || []).filter(t => t != null && t + 20 * 60 > now);
+  const times = M.eventTimes(d.locations[0].daily, d.kind).filter(t => t != null && t + 20 * 60 > now);
   const out = [];
   for (const t of times) {
-    const S = M.samplesAt(d.locations, t);
-    if (!M.hasData(S)) continue;
-    out.push({ t, ...M.scoreSamples(S) });
+    const r = M.scoreModels(d.locations, t);
+    if (!r) continue;
+    out.push(r);
     if (out.length >= 7) break;
   }
   return out;
@@ -286,7 +266,7 @@ function renderSelected() {
 
 function renderConfidence() {
   const e = state.events[state.sel], el = $("conf");
-  const ms = state.models ? modelScores(state.models, e.t) : [];
+  const ms = e.modelScores || [];
   const c = M.confidenceFrom(ms.map(x => x.score));
   el.hidden = !c;
   $("confDetail").hidden = !c;
@@ -295,7 +275,7 @@ function renderConfidence() {
   const range = c.min === c.max ? `${c.min}` : `${c.min}–${c.max}`;
   el.innerHTML = `<span class="dot" style="background:${col}"></span>${c.level} confidence · models say ${range}`;
   $("confDetail").innerHTML = `<b>Forecast confidence: ${c.level}.</b> ` +
-    ms.map(x => `${MODEL_NAMES[x.model]} ${x.score}`).join(" · ") +
+    ms.map(x => `${MODEL_NAMES[x.model]} ${x.score}`).join(" · ") + `. The headline is the middle one (${MODEL_NAMES[e.model]})` +
     `. ${c.level === "High" ? "The weather models agree, so the forecast is more trustworthy."
       : c.level === "Medium" ? "The models partly disagree. Check again nearer the time."
       : "The models disagree a lot. Treat this score as a rough guess and check again later."}`;
@@ -328,7 +308,7 @@ function drawTimeline() {
     g.strokeStyle = s.col; g.lineWidth = 2.2; g.setLineDash(s.dash || []); g.beginPath();
     let started = false;
     for (let tt = t0; tt <= t1; tt += 900) {
-      const vals = s.loc.map(i => M.valueAt(d.locations[i], s.key, tt)).filter(v => v != null);
+      const vals = s.loc.map(i => mv(d.locations[i], s.key, e, tt)).filter(v => v != null);
       if (!vals.length) { started = false; continue; }
       const v = vals.reduce((a, b) => a + b, 0) / vals.length;
       if (!started) { g.moveTo(x(tt), y(v)); started = true; } else g.lineTo(x(tt), y(v));
@@ -391,7 +371,7 @@ async function drawMap() {
   L.polyline([[p.lat, p.lon], end], { color: "#ffb36b", weight: 3, opacity: 0.8, dashArray: "6 6" }).addTo(mapLayer);
   M.ALL_KM.forEach((km, i) => {
     const [la, lo] = d.pts[i];
-    const low = M.valueAt(d.locations[i], "cloud_cover_low", e.t), mid = M.valueAt(d.locations[i], "cloud_cover_mid", e.t), high = M.valueAt(d.locations[i], "cloud_cover_high", e.t);
+    const low = mv(d.locations[i], "cloud_cover_low", e), mid = mv(d.locations[i], "cloud_cover_mid", e), high = mv(d.locations[i], "cloud_cover_high", e);
     const isPath = M.PATH_KM.includes(km);
     const block = isPath ? Math.min(100, (low || 0) + 0.5 * (mid || 0)) : (low || 0);
     const r = (n) => n == null ? "–" : Math.round(n);
@@ -439,11 +419,9 @@ const entryId = (kind, t, off, place) => `${kind}-${isoDay(t, off)}-${place.lat.
 /** The sunset/sunrise that has just happened (within the last 16 hours), scored. */
 function recentEvent(d) {
   const now = Date.now() / 1000;
-  const times = (d.locations[0].daily[d.kind] || []).filter(t => t != null && t <= now + 10 * 60 && t >= now - 16 * 3600);
+  const times = M.eventTimes(d.locations[0].daily, d.kind).filter(t => t != null && t <= now + 10 * 60 && t >= now - 16 * 3600);
   if (!times.length) return null;
-  const t = Math.max(...times);
-  const S = M.samplesAt(d.locations, t);
-  return M.hasData(S) ? { t, ...M.scoreSamples(S) } : null;
+  return M.scoreModels(d.locations, Math.max(...times));
 }
 
 let rateSel = null, rateEvent = null;
@@ -550,7 +528,7 @@ async function scoreSpots(spots, kind, t = null) {
   const daysAhead = t ? Math.ceil((t - now) / 86400) + 2 : 2;
   const params = new URLSearchParams({
     latitude: pts.map(p => p[0].toFixed(3)).join(","), longitude: pts.map(p => p[1].toFixed(3)).join(","),
-    hourly: M.VARS.join(","), daily: "sunset,sunrise", timezone: "auto", timeformat: "unixtime",
+    hourly: M.VARS.join(","), daily: "sunset,sunrise", models: M.WEATHER_MODELS.join(","), timezone: "auto", timeformat: "unixtime",
     forecast_days: String(Math.min(8, Math.max(2, daysAhead))),
   });
   let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params, 20000);
@@ -559,10 +537,10 @@ async function scoreSpots(spots, kind, t = null) {
   return spots.map((sp, i) => {
     const locs = data.slice(i * n, i * n + n);
     let when = t;
-    if (when == null) when = (locs[0].daily[kind] || []).find(x => x != null && x + 20 * 60 > now);
+    if (when == null) when = M.eventTimes(locs[0].daily, kind).find(x => x != null && x + 20 * 60 > now);
     if (when == null) return { ...sp, score: null };
-    const S = M.samplesAt(locs, when);
-    return M.hasData(S) ? { ...sp, t: when, offset: locs[0].utc_offset_seconds || 0, ...M.scoreSamples(S) } : { ...sp, score: null };
+    const r = M.scoreModels(locs, when);
+    return r ? { ...sp, offset: locs[0].utc_offset_seconds || 0, ...r } : { ...sp, score: null };
   });
 }
 
@@ -716,7 +694,7 @@ async function loadPast(place, kind, dateStr) {
   const recent = (Date.now() / 1000 - day) / 86400 <= 85;
   const params = new URLSearchParams({
     latitude: pts.map(p => p[0].toFixed(4)).join(","), longitude: pts.map(p => p[1].toFixed(4)).join(","),
-    hourly: M.VARS.join(","), daily: "sunset,sunrise", timezone: "auto", timeformat: "unixtime",
+    hourly: M.VARS.join(","), daily: "sunset,sunrise", models: M.WEATHER_MODELS.join(","), timezone: "auto", timeformat: "unixtime",
     start_date: dateStr, end_date: next,
   });
   const base = recent ? "https://api.open-meteo.com/v1/forecast?" : "https://historical-forecast-api.open-meteo.com/v1/forecast?";
@@ -729,11 +707,11 @@ async function loadPast(place, kind, dateStr) {
   }
   if (!Array.isArray(data)) data = [data];
   const d = { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind };
-  const t = (data[0].daily[kind] || [])[0];
+  const t = M.eventTimes(data[0].daily, kind)[0];
   if (t == null) throw new Error("no-event");
-  const S = M.samplesAt(data, t);
-  if (!M.hasData(S)) throw new Error("no-data");
-  return { d, e: { t, ...M.scoreSamples(S) } };
+  const e = M.scoreModels(data, t);
+  if (!e) throw new Error("no-data");
+  return { d, e };
 }
 
 (() => {
@@ -750,8 +728,8 @@ $("pastGo").addEventListener("click", async () => {
   $("pastGo").disabled = true; $("pastStatus").textContent = "Looking up the archived forecast…";
   try {
     const { d, e } = await loadPast(state.place, state.kind, v);
-    state.live = state.live || { data: state.data, events: state.events, models: state.models, sel: state.sel };
-    state.past = true; state.data = d; state.events = [e]; state.sel = 0; state.models = null;
+    state.live = state.live || { data: state.data, events: state.events, sel: state.sel };
+    state.past = true; state.data = d; state.events = [e]; state.sel = 0;
     $("pastStatus").textContent = ""; $("pastCard").open = false;
     applyPastUi(); renderSelected(); renderRate();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -985,7 +963,7 @@ function showForecast(place, d, at, mode) {
   if (!events.length) throw new Error("no-event");
   const keepSel = state.data && state.data.kind === d.kind && state.place === place && !state.past ? state.sel : 0;
   state.data = d; state.events = events; state.sel = Math.min(keepSel, events.length - 1);
-  state.models = null; state.past = false; state.live = null; applyPastUi();
+  state.past = false; state.live = null; applyPastUi();
   state.updatedAt = at;
   renderPlace(place); renderSaveButton(); renderSelected(); renderRate(); renderLog(); show("result");
   $("nearList").innerHTML = ""; $("nearStatus").textContent = ""; $("nearMap").hidden = true;
@@ -993,10 +971,6 @@ function showForecast(place, d, at, mode) {
   if (mode === "offline") $("offline").textContent = `Offline · forecast from ${ago(Date.now() - at)}`;
   renderUpdated(mode === "updating");
   if (mode !== "updating") renderMySpots();
-  if (mode !== "offline") loadModels(d).then(m => {
-    if (state.data !== d) return;
-    state.models = m; renderConfidence();
-  }).catch(() => { /* confidence is optional */ });
 }
 function renderUpdated(updating) {
   $("updated").textContent = updating ? "Updating…" : state.updatedAt ? `Updated ${ago(Date.now() - state.updatedAt)}` : "";
@@ -1102,6 +1076,7 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", registerWorker);
 }
 $("modelVersion").textContent = M.MODEL_VERSION;
+$("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
 const RELEASE = "3.9";

@@ -18,6 +18,7 @@ test("scores match the Python model on 400 random cases", () => {
     const half = Math.abs((r.raw % 1) - 0.5) < 1e-9;
     assert.ok(r.score === c.score || (half && Math.abs(r.score - c.score) === 1), `${r.score} vs ${c.score}`);
     const map = { canvas: "canvas", path: "light_path", local: "local_low_cloud", overcast: "overcast", rain: "rain", clarity: "clarity" };
+    if (!half) assert.equal(r.verdict, c.verdict, "verdict matches Python");
     for (const [js, py] of Object.entries(map)) assert.ok(Math.abs(r.factors[js] - c.factors[py]) <= 0.005 + 1e-12, `${js} ${r.factors[js]} vs ${c.factors[py]}`); // Python reports factors to 2 dp
   }
 });
@@ -102,4 +103,22 @@ test("alert timing rules", () => {
   const sunrise = { t: day + 86400 + 7 * 3600, score: 70 };
   assert.equal(M.shouldAlert(cfg, sunrise, at(20), off, "b"), true, "evening before a good sunrise");
   assert.equal(M.shouldAlert(cfg, sunrise, at(14), off, "b"), false, "not in the afternoon for tomorrow's sunrise");
+});
+
+test("median of three weather models", () => {
+  const t = 3600;
+  const loc = mids => ({ hourly: Object.assign({ time: [0, 7200] }, ...M.WEATHER_MODELS.flatMap((m, i) =>
+    M.VARS.map(v => ({ [`${v}_${m}`]: [v === "cloud_cover_mid" ? mids[i] : v === "visibility" ? 40000 : v === "relative_humidity_2m" ? 50 : 0, null].map((x, k) => k ? x ?? (v === "cloud_cover_mid" ? mids[i] : 0) : x) }))))});
+  const near = loc([0, 55, 95]), far = loc([5, 5, 5]);
+  const r = M.scoreModels([near, near, far, far, far], t);
+  const scores = r.modelScores.map(x => x.score);
+  assert.equal(scores.length, 3);
+  assert.equal(r.score, [...scores].sort((a, b) => a - b)[1]);
+  assert.ok(M.WEATHER_MODELS.includes(r.model));
+});
+
+test("event times come from suffixed daily keys", () => {
+  assert.deepEqual(M.eventTimes({ sunset: [1] }, "sunset"), [1]);
+  assert.deepEqual(M.eventTimes({ sunset_gfs_seamless: [2], sunrise_gfs_seamless: [3] }, "sunrise"), [3]);
+  assert.deepEqual(M.eventTimes({}, "sunset"), []);
 });

@@ -2,7 +2,7 @@
 // Browsers that can't run module service workers get sw-classic.js (offline only).
 import * as M from "./js/model.js";
 
-const CACHE = "wib-shell-v4";
+const CACHE = "wib-shell-v5";
 const CONFIG_CACHE = "wib-config";
 const CONFIG_URL = "./__alert-config";
 const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/model.js", "manifest.webmanifest",
@@ -48,18 +48,18 @@ async function checkAlert({ force = false } = {}) {
   const pts = M.ALL_KM.map(km => M.destination(place.lat, place.lon, az, km));
   const params = new URLSearchParams({
     latitude: pts.map(p => p[0].toFixed(4)).join(","), longitude: pts.map(p => p[1].toFixed(4)).join(","),
-    hourly: M.VARS.join(","), daily: "sunset,sunrise", timezone: "auto", timeformat: "unixtime", forecast_days: "3",
+    hourly: M.VARS.join(","), daily: "sunset,sunrise", models: M.WEATHER_MODELS.join(","), timezone: "auto", timeformat: "unixtime", forecast_days: "3",
   });
   const api = cfg.testApi || "https://api.open-meteo.com/v1/forecast";   // testApi: used only by the automated tests
   const res = await fetch(api + "?" + params);
   if (!res.ok) return { status: "fetch-failed" };
   let data = await res.json(); if (!Array.isArray(data)) data = [data];
   const off = data[0].utc_offset_seconds || 0;
-  const t = (data[0].daily[kind] || []).find(x => x != null && x > now);
+  const t = M.eventTimes(data[0].daily, kind).find(x => x != null && x > now);
   if (t == null) return { status: "no-event" };
-  const S = M.samplesAt(data, t);
-  if (!M.hasData(S)) return { status: "no-data" };
-  const e = { t, ...M.scoreSamples(S) }, id = `${kind}-${t}`;
+  const e = M.scoreModels(data, t);
+  if (!e) return { status: "no-data" };
+  const id = `${kind}-${t}`;
   cfg.lastCheck = { at: Date.now(), score: e.score, t };
   const go = force || M.shouldAlert(cfg, e, now, off, id);
   if (go) {

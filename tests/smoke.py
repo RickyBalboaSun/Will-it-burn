@@ -39,14 +39,15 @@ def forecast_body(qs):
         base = {"cloud_cover": [min(100, m + 10) for m in mid], "cloud_cover_low": [0] * hours,
                 "cloud_cover_mid": mid, "cloud_cover_high": [10] * hours, "visibility": [40000] * hours,
                 "relative_humidity_2m": [60] * hours, "precipitation_probability": [0] * hours, "precipitation": [0.0] * hours}
-        hourly = {"time": times}
-        if models:
-            for k, (mname) in enumerate(models.split(",")):
+        hourly, daily = {"time": times}, {"time": []}
+        if models:   # like Open-Meteo: every hourly AND daily key suffixed per model, no plain "sunset"
+            for k, mname in enumerate(models.split(",")):
                 for var, vals in base.items():
                     hourly[f"{var}_{mname}"] = [min(100, v + 15 * k) if var == "cloud_cover_mid" else v for v in vals]
+                daily[f"sunset_{mname}"] = sunsets; daily[f"sunrise_{mname}"] = sunrises
         else:
-            hourly.update(base)
-        out.append({"utc_offset_seconds": OFFSET, "elevation": 2400 if float(lat) > 37 and float(lat) < 38 else 20, "hourly": hourly, "daily": {"time": [], "sunset": sunsets, "sunrise": sunrises}})
+            hourly.update(base); daily.update(sunset=sunsets, sunrise=sunrises)
+        out.append({"utc_offset_seconds": OFFSET, "elevation": 2400 if float(lat) > 37 and float(lat) < 38 else 20, "hourly": hourly, "daily": daily})
     return out if len(out) > 1 else out[0]
 
 
@@ -127,6 +128,9 @@ def main():
         check(len(pg.query_selector_all(".tip")) >= 1, "look-for tips: " + " | ".join(t.inner_text().split("\n")[0] for t in pg.query_selector_all(".tip")))
         pg.wait_for_selector("#conf:not([hidden])", timeout=8000)
         check("confidence" in pg.inner_text("#conf"), "confidence pill: " + pg.inner_text("#conf"))
+        import re as _re
+        rng = [int(x) for x in _re.findall(r"\d+", pg.inner_text("#conf"))]
+        check(min(rng) <= int(pg.inner_text("#score")) <= max(rng), f"headline {pg.inner_text('#score')} sits inside the model range {rng}")
         pg.click("#conf"); pg.wait_for_timeout(300)
         pg.wait_for_timeout(200)
         blank = pg.evaluate("(() => { const c = document.getElementById('timeline'); const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data; let n=0; for (let i=3;i<d.length;i+=4) if (d[i]) n++; return n; })()")
@@ -214,7 +218,7 @@ def main():
         pg.context.unroute("**/*open-meteo.com/**")
         pg.context.route("**/*open-meteo.com/**", lambda r: (calls.append(r.request.url), handle(r)))
         pg.reload(); pg.wait_for_selector("#result:not([hidden])", timeout=15000); pg.wait_for_timeout(500)
-        check(not any("forecast_days=8" in c and "models" not in c for c in calls), "fresh forecast reused from cache (no new forecast request)")
+        check(not any("forecast_days=8" in c for c in calls), "fresh forecast reused from cache (no new forecast request)")
         pg.evaluate("() => { const c = JSON.parse(localStorage.getItem('wib-cache')); c.forEach(x => x.at -= 3600000); localStorage.setItem('wib-cache', JSON.stringify(c)); }")
         pg.context.unroute("**/*open-meteo.com/**")
         pg.context.route("**/*open-meteo.com/**", lambda r: r.abort())

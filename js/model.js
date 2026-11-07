@@ -3,7 +3,10 @@
 // The scoring must stay identical to model/logic.py in the private data repo;
 // tests/parity.test.mjs checks this against fixtures generated from the Python.
 
-export const MODEL_VERSION = "1.1.0";
+export const MODEL_VERSION = "1.2.0";
+
+// Three independent weather models; the headline score is their median (scoreModels).
+export const WEATHER_MODELS = ["ecmwf_ifs025", "gfs_seamless", "icon_seamless"];
 
 export const CANVAS_KM = [0, 25];          // cloud here is what lights up
 export const PATH_KM = [75, 150, 250];     // cloud here blocks the low sun
@@ -27,12 +30,17 @@ export const mean = xs => {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 };
 
-export function verdictFor(score) {
+/** Plain-English verdict. Mirrors verdict_for() in logic.py. */
+export function verdictFor(score, f = null) {
   if (score >= 75) return "Fire in the sky!";
   if (score >= 50) return "Potentially good";
+  if (f && f.canvas < 0.15 && f.path >= 0.8 && f.overcast >= 0.9 && f.local >= 0.9) return "Clear: simple glow";
   if (score >= 25) return "Some colour possible";
   return "Not looking good";
 }
+
+/** One-line key for the 0–100 scale. */
+export const SCALE_KEY = "Under 25 poor · 25–49 some colour · 50–74 worth going out · 75+ fire";
 
 /**
  * Score one event. S maps distance_km -> { variable: value at the event time }.
@@ -65,7 +73,7 @@ export function scoreSamples(S) {
   return {
     score,
     raw,
-    verdict: verdictFor(score),
+    verdict: verdictFor(score, { canvas, path, local, overcast }),
     factors: { canvas, path, local, overcast, rain, clarity },
     inputs: {
       cMid, cHigh,
@@ -206,8 +214,35 @@ export function viewingTimes(lat, lon, eventUnix, kind = "sunset") {
   };
 }
 
-/* ---------- multi-model confidence ---------- */
-export const CONFIDENCE_MODELS = ["ecmwf_ifs025", "gfs_seamless", "icon_seamless"];
+/* ---------- multi-model scoring ---------- */
+export const CONFIDENCE_MODELS = WEATHER_MODELS;
+
+/**
+ * Event times (sunset or sunrise) from a daily block. With several models,
+ * Open-Meteo suffixes daily keys (sunset_ecmwf_ifs025...), so take the first present.
+ */
+export function eventTimes(daily, kind) {
+  if (daily[kind]) return daily[kind];
+  for (const m of WEATHER_MODELS) if (daily[`${kind}_${m}`]) return daily[`${kind}_${m}`];
+  return [];
+}
+
+/**
+ * Score time t with each weather model and return the median model's result,
+ * plus `model` (whose breakdown is shown) and `modelScores`. Mirrors score_models() in logic.py.
+ * Lower median when only two models have data; null if none do.
+ */
+export function scoreModels(locations, t) {
+  const res = [];
+  for (const m of WEATHER_MODELS) {
+    const S = samplesAt(locations, t, "_" + m);
+    if (hasData(S)) res.push({ model: m, r: scoreSamples(S) });
+  }
+  if (!res.length) return null;
+  res.sort((a, b) => a.r.score - b.r.score);
+  const mid = res[Math.floor((res.length - 1) / 2)];
+  return { ...mid.r, t, model: mid.model, modelScores: res.map(x => ({ model: x.model, score: x.r.score })) };
+}
 
 /** Summarise how much weather models disagree. scores: array of numbers. */
 export function confidenceFrom(scores) {
