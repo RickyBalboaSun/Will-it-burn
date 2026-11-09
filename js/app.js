@@ -427,7 +427,7 @@ for (const [id, kind] of [["kindSunset", "sunset"], ["kindSunrise", "sunrise"]])
 
 
 /* ---------- rating and log ---------- */
-const RUBRIC = n => n == null ? "Tap a number. Rate what you saw, not the photo."
+const RUBRIC = n => n == null ? "Rate the colour in the sky, not the photo."
   : n <= 2 ? "Grey or no visible colour"
   : n <= 4 ? "A coloured band on the horizon only"
   : n <= 6 ? "Some clouds lit up, colour in part of the sky"
@@ -485,7 +485,7 @@ function renderRate() {
   const d = state.data, e = state.past ? state.events[0] : recentEvent(d);
   rateEvent = e;
   $("rateCard").hidden = !e;
-  if (!e) return;
+  if (!e) { renderRateBanner(); return; }
   const off = d.offset, word = d.kind;
   const id = entryId(d.kind, e.t, off, state.place);
   const existing = logAll().find(x => x.id === id);
@@ -498,20 +498,33 @@ function renderRate() {
   if (existing) setLogLink(existing);
   photoMeta = existing ? existing.photoMeta || "" : ""; $("photoMeta").textContent = ""; $("ratePhoto").value = "";
   $("rateSave").textContent = existing ? "Update rating" : "Save rating";
-  $("rateMsg").textContent = existing ? "Saved on this phone." : "";
+  $("rateMsg").textContent = existing ? `Saved: ${QUICK_NAME(existing.rating)}. Tap another to change it.` : "";
+  $("rateMore").open = false;
+  $("rateShareNote").hidden = !sharing() || !!existing;
   drawScale();
+  renderRateBanner();
 }
+const QUICK_NAME = n => n <= 2 ? "Dull" : n <= 4 ? "Some colour" : n <= 6 ? "Good" : n <= 8 ? "Great" : "On fire";
 function drawScale() {
   $("scale").innerHTML = Array.from({ length: 11 }, (_, n) =>
     `<button role="radio" aria-checked="${rateSel === n}" class="${rateSel === n ? "on" : ""}" data-n="${n}">${n}</button>`).join("");
   $("rubric").textContent = RUBRIC(rateSel);
+  document.querySelectorAll("#quick button").forEach(b => {
+    const on = rateSel != null && QUICK_NAME(rateSel) === b.textContent.trim();
+    b.classList.toggle("on", on); b.setAttribute("aria-checked", on);
+  });
 }
+$("quick").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  rateSel = Number(b.dataset.n); drawScale(); saveRating(true);
+});
 $("scale").addEventListener("click", ev => {
   const b = ev.target.closest("button"); if (!b) return;
   rateSel = Number(b.dataset.n); drawScale();
 });
-$("rateSave").addEventListener("click", async () => {
-  if (rateSel == null) { $("rateMsg").textContent = "Tap a number from 0 to 10 first."; return; }
+$("rateSave").addEventListener("click", () => saveRating(false));
+async function saveRating(quick) {
+  if (rateSel == null) { $("rateMsg").textContent = "Tap how colourful it was first."; return; }
   const d = state.data, e = rateEvent, p = state.place;
   $("rateMsg").textContent = "Saving…";
   const pos = state.past ? null : await currentPosition();
@@ -527,11 +540,56 @@ $("rateSave").addEventListener("click", async () => {
   const log = logAll().filter(x => x.id !== entry.id);
   log.push(entry); log.sort((a, b) => b.t - a.t);
   store.set("wib-log", log);
-  $("rateMsg").innerHTML = `Saved on this phone${entry.onLocation ? ' <span class="badge-ok">✓ on location</span>' : ""}. Now log it, with your photo.`;
+  $("rateMsg").innerHTML = `Thanks. Saved: <b>${QUICK_NAME(entry.rating)}</b>${quick ? "" : ` (${entry.rating}/10)`}${entry.onLocation ? ' <span class="badge-ok">✓ on location</span>' : ""}`;
   $("rateShare").hidden = false; $("rateSave").textContent = "Update rating";
   setLogLink(entry);
-  renderLog();
-});
+  renderLog(); renderRateBanner();
+  shareRating(entry);
+}
+
+/* ---------- anonymous rating sharing (Netlify Forms) ---------- */
+const isDev = () => !!store.get("wib-dev", false);
+const sharing = () => store.get("wib-share", true) !== false;
+function clientId() {
+  let id = store.get("wib-client", "");
+  if (!id) { id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); store.set("wib-client", id); }
+  return id;
+}
+function sharePayload(x) {
+  const dev = isDev(), r = v => Math.round(v * 100) / 100; // about 1 km for everyone but the developer
+  return {
+    id: x.id, kind: x.kind, date: x.date, t: x.t, rating: x.rating, predicted: x.predicted, model: x.model,
+    inputs: x.inputs, facing: x.facing, onLocation: !!x.onLocation,
+    lat: dev ? x.place.lat : r(x.place.lat), lon: dev ? x.place.lon : r(x.place.lon),
+    place: dev ? x.place.name : undefined, notes: dev ? x.notes || "" : undefined, savedAt: x.savedAt,
+  };
+}
+async function shareRating(x) {
+  if (!sharing() || location.protocol === "file:") return false;
+  try {
+    const body = new URLSearchParams({ "form-name": "rating", "bot-field": "", entry: JSON.stringify(sharePayload(x)),
+      client: clientId(), dev: isDev() ? "1" : "0", release: RELEASE });
+    const res = await fetch("/", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString() });
+    if (!res.ok) return false;
+    store.set("wib-log", logAll().map(e => e.id === x.id ? { ...e, sharedAt: Date.now() } : e));
+    return true;
+  } catch { return false; }
+}
+/** Send any rating saved or changed since it was last shared (e.g. rated offline). */
+async function shareBacklog() {
+  if (!sharing()) return;
+  for (const x of logAll().filter(e => !e.sharedAt || e.sharedAt < e.savedAt).slice(0, 10)) await shareRating(x);
+}
+function renderRateBanner() {
+  const e = rateEvent, b = $("rateBanner");
+  if (!e || state.past || !state.data) { b.hidden = true; return; }
+  const d = state.data, id = entryId(d.kind, e.t, d.offset, state.place);
+  const done = logAll().some(x => x.id === id);
+  const dn = dayName(e.t, d.offset, d.kind);
+  b.textContent = `How was ${dn === "Tonight" || dn === "Today" ? dn.toLowerCase() + "'s" : "the"} ${d.kind}? Rate it ↓`;
+  b.hidden = done;
+}
+$("rateBanner").addEventListener("click", () => $("rateCard").scrollIntoView({ behavior: "smooth", block: "start" }));
 
 function logUrl(x) {
   const word = x.kind === "sunset" ? "Sunset" : "Sunrise";
@@ -912,6 +970,13 @@ $("calBtn").addEventListener("click", () => {
     `LOCATION:${(p.label || p.name).replace(/[,;]/g, " ")}`, `GEO:${p.lat.toFixed(4)};${p.lon.toFixed(4)}`,
     `DESCRIPTION:${word} at ${clock(e.t, d.offset)}. Face ${M.compass(d.az)}. Forecast score ${e.score}/100 – check again nearer the time: ${location.href.split("#")[0]}`,
     "BEGIN:VALARM", "TRIGGER:-PT30M", "ACTION:DISPLAY", `DESCRIPTION:${word} soon`, "END:VALARM",
+    "END:VEVENT",
+    // a short follow-up event so the phone nudges a rating once the colour has gone
+    "BEGIN:VEVENT", `UID:rate-${entryId(d.kind, e.t, d.offset, p)}@sunscore`, `DTSTAMP:${icsDate(Date.now() / 1000)}`,
+    `DTSTART:${icsDate(end + 15 * 60)}`, `DTEND:${icsDate(end + 20 * 60)}`,
+    `SUMMARY:Rate the ${word.toLowerCase()} in Sunscore`,
+    `DESCRIPTION:How was it? One tap: ${location.href.split("#")[0]}`,
+    "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", `DESCRIPTION:How was the ${word.toLowerCase()}?`, "END:VALARM",
     "END:VEVENT", "END:VCALENDAR",
   ];
   const blob = new Blob([lines.join("\r\n")], { type: "text/calendar" });
@@ -1197,6 +1262,18 @@ function showTab(name) {
   if (name === "more") renderAlerts();
 }
 $("tabbar").addEventListener("click", e => { const b = e.target.closest("button[data-go]"); if (b) showTab(b.dataset.go); });
+/* developer mode: tap the model version five times */
+let devTaps = 0, devTimer = null;
+function applyDev() { $("devCard").hidden = !isDev(); }
+$("modelVersion").addEventListener("click", () => {
+  devTaps++; clearTimeout(devTimer); devTimer = setTimeout(() => { devTaps = 0; }, 1500);
+  if (devTaps >= 5) { devTaps = 0; store.set("wib-dev", true); applyDev(); showTab("more"); $("devCard").scrollIntoView({ block: "center" }); }
+});
+$("devOpen").addEventListener("click", () => showTab("log"));
+$("devOff").addEventListener("click", () => { store.set("wib-dev", false); applyDev(); });
+$("shareRatings").checked = sharing();
+$("shareRatings").addEventListener("change", e => { store.set("wib-share", e.target.checked); if (state.data) renderRate(); if (e.target.checked) shareBacklog(); });
+applyDev();
 $("howBtn2").addEventListener("click", () => $("how").showModal());
 $("newBtn").addEventListener("click", () => $("whatsNew").showModal());
 
@@ -1205,10 +1282,11 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", registerWorker);
 }
 $("modelVersion").textContent = M.MODEL_VERSION;
+setTimeout(shareBacklog, 4000);
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.4";
+const RELEASE = "4.5";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

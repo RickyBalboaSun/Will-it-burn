@@ -269,3 +269,20 @@ body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
    On that host only, lift the tab bar so the badge sits in a strip beneath it. */
 html.host-badge body { padding-bottom: calc(76px + 52px + env(safe-area-inset-bottom)); }
 html.host-badge .tabbar { padding-bottom: calc(52px + env(safe-area-inset-bottom)); }
+
+/* one-tap rating */
+.quick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
+.quick button { border: 0; border-radius: 14px; background: rgba(255,255,255,0.1); min-height: 76px; padding: 10px 2px 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 12.5px; font-weight: 600; line-height: 1.15; }
+.quick button.on { background: #fff; color: #2a1838; }
+.quick i { width: 22px; height: 22px; border-radius: 50%; display: block; }
+.quick .q1 { background: #6f6a85; } .quick .q2 { background: #ffd9a0; } .quick .q3 { background: #ffa552; }
+.quick .q4 { background: linear-gradient(#ffa552, #f0532c); } .quick .q5 { background: #f0532c; box-shadow: 0 0 10px 2px rgba(240,83,44,0.7); }
+.rate-more { margin-top: 10px; }
+.rate-more summary { font-size: 13.5px; opacity: 0.8; cursor: pointer; padding: 6px 0; }
+.rate-more[open] summary { margin-bottom: 10px; }
+
+.rate-banner { display: block; margin: 0 auto 10px; border: 0; border-radius: 999px; padding: 8px 16px; min-height: 36px;
+  background: #ffa552; color: #2a1838; font-weight: 600; font-size: 14px; }
+.rate-share-note { font-size: 12px; opacity: 0.7; margin-top: 4px; line-height: 1.4; }
+#modelVersion { cursor: default; -webkit-user-select: none; user-select: none; padding: 4px 2px; }

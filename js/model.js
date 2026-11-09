@@ -3,7 +3,9 @@
 // The scoring must stay identical to model/logic.py in the private data repo;
 // tests/parity.test.mjs checks this against fixtures generated from the Python.
 
-export const MODEL_VERSION = "1.2.0";
+export const MODEL_VERSION = "1.3.0";
+/** 1.3.0 (provisional): clear-sky start raised 0.25 -> 0.50 after clear skies were consistently under-rated (H2). */
+export const CLEAR_SKY_BASE = 0.5;
 
 // Three independent weather models; the headline score is their median (scoreModels).
 export const WEATHER_MODELS = ["ecmwf_ifs025", "gfs_seamless", "icon_seamless"];
@@ -33,8 +35,8 @@ export const mean = xs => {
 /** Plain-English verdict. Mirrors verdict_for() in logic.py. */
 export function verdictFor(score, f = null) {
   if (score >= 75) return "Fire in the sky!";
-  if (score >= 50) return "Potentially good";
   if (f && f.canvas < 0.15 && f.path >= 0.8 && f.overcast >= 0.9 && f.local >= 0.9) return "Clear: simple glow";
+  if (score >= 50) return "Potentially good";
   if (score >= 25) return "Some colour possible";
   return "Not looking good";
 }
@@ -51,7 +53,7 @@ export function scoreSamples(S) {
   const cMid = mean(CANVAS_KM.map(d => S[d].cloud_cover_mid));
   const cHigh = mean(CANVAS_KM.map(d => S[d].cloud_cover_high));
   const canvas = Math.min(1, 0.65 * band(cMid, 5, 30, 70, 90) + 0.45 * band(cHigh, 10, 25, 80, 95));
-  const base = lerp(0.25, 1, canvas);
+  const base = lerp(CLEAR_SKY_BASE, 1, canvas);
 
   const blocks = PATH_KM.map(d => Math.min(100, (S[d].cloud_cover_low || 0) + 0.5 * (S[d].cloud_cover_mid || 0)));
   const path = rampDown(mean(blocks), 15, 75);

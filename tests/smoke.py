@@ -106,6 +106,10 @@ def check(cond, msg):
     if not cond: FAILS.append(msg)
 
 
+def logs_count(pg):
+    return pg.evaluate("(JSON.parse(localStorage.getItem('wib-log') || '[]')).length")
+
+
 def main():
     make_test_photo()
     httpd = serve(); base = f"http://127.0.0.1:{httpd.server_address[1]}/"
@@ -113,6 +117,19 @@ def main():
         chrome = os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")
         b = p.chromium.launch(executable_path=chrome if os.path.exists(chrome) else None, args=["--no-sandbox"])
         errors = []
+        posted = []
+
+        def form_post(route):
+            if route.request.method == "POST":
+                posted.append(parse_qs(route.request.post_data or ""))
+                route.fulfill(status=200, body="ok")
+            else:
+                route.continue_()
+
+        def open_dev(pg):
+            if pg.is_hidden("#devCard"):
+                for _ in range(5): pg.click("#modelVersion")
+            pg.click("#devOpen"); pg.wait_for_timeout(100)
 
         def new_page(geo=True):
             kw = dict(viewport={"width": 390, "height": 844}, device_scale_factor=2, accept_downloads=True, locale="en-GB")
@@ -125,6 +142,7 @@ def main():
                 path=f"{LEAFLET}/leaflet.css" if r.request.url.endswith(".css") else f"{LEAFLET}/leaflet.js",
                 content_type="text/css" if r.request.url.endswith(".css") else "application/javascript"))
             ctx.route("**/tile.openstreetmap.org/**", lambda r: r.fulfill(status=200, body=TILE, content_type="image/png"))
+            ctx.route(lambda u: urlparse(u).path == "/", form_post)
             pg = ctx.new_page()
             pg.on("pageerror", lambda e: errors.append(str(e)))
             pg.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and errors.append(m.text))
@@ -312,8 +330,18 @@ def main():
         pg.clock.install(time=LOCAL_MIDNIGHT + 17 * 3600 + 45 * 60)
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
         check(not pg.is_hidden("#rateCard"), "rating card shown after sunset")
+        check(not pg.is_hidden("#rateBanner") and "Rate it" in pg.inner_text("#rateBanner"), "rate banner at the top after sunset")
         check("tonight" in pg.inner_text("#rateTitle").lower(), "asks about tonight")
-        pg.click("#rateSave"); check("first" in pg.inner_text("#rateMsg"), "must pick a number before saving")
+        pg.click("#rateMore summary")
+        pg.click("#rateSave"); check("first" in pg.inner_text("#rateMsg"), "must pick before saving")
+        pg.click("#quick button[data-n='8']"); pg.wait_for_function("document.getElementById('rateMsg').textContent.includes('Saved')", timeout=8000)
+        check("Great" in pg.inner_text("#rateMsg") and "on" in (pg.get_attribute("#quick button[data-n='8']", "class") or ""), "one tap saves: " + pg.inner_text("#rateMsg"))
+        check(logs_count(pg) == 1, "one-tap rating is in the log")
+        pg.wait_for_timeout(300)
+        sent = [json.loads(x["entry"][0]) for x in posted if x.get("form-name") == ["rating"]]
+        check(len(sent) >= 1 and sent[-1]["rating"] == 8 and sent[-1]["lat"] == round(sent[-1]["lat"], 2) and "place" not in sent[-1],
+              "rating shared anonymously: " + (json.dumps(sent[-1])[:120] if sent else "nothing posted"))
+        check(pg.is_hidden("#rateBanner"), "banner gone once rated")
         pg.click("#scale button[data-n='7']")
         check("Strong colour" in pg.inner_text("#rubric"), "rubric text for 7")
         pg.fill("#rateNotes", "Pink underlit altocumulus, peaked 10 min after sunset")
@@ -321,10 +349,10 @@ def main():
             pg.set_input_files("#ratePhoto", PHOTO)
             pg.wait_for_function("document.getElementById('photoMeta').textContent.includes('Photo taken') || document.getElementById('photoMeta').textContent.includes('no time')", timeout=8000)
             check("Photo taken 17:31 (11 min after sunset)" in pg.inner_text("#photoMeta") and "m from the spot" in pg.inner_text("#photoMeta"), "photo time and place read: " + pg.inner_text("#photoMeta"))
-        pg.click("#rateSave"); pg.wait_for_selector("#rateShare:not([hidden])", timeout=10000)
+        pg.click("#rateSave"); pg.wait_for_function("document.getElementById('rateMsg').textContent.includes('7/10')", timeout=10000)
         check("on location" in pg.inner_text("#rateMsg"), "rated on location: " + pg.inner_text("#rateMsg"))
         check(pg.is_hidden("#rateLog"), "GitHub logging off by default")
-        pg.click(".tabbar button[data-go='more']"); pg.fill("#logRepo", "RickyBalboaSun/will-it-burn-data"); pg.click("#logRepoSave")
+        pg.click(".tabbar button[data-go='more']"); open_dev(pg); pg.fill("#logRepo", "RickyBalboaSun/will-it-burn-data"); pg.click("#logRepoSave")
         pg.click(".tabbar button[data-go='tonight']")
         check(not pg.is_hidden("#rateLog"), "GitHub button appears once a repository is set")
         href = pg.get_attribute("#rateLog", "href")
@@ -337,8 +365,8 @@ def main():
         print("    " + clip.replace("\n", "\n    "))
         shot(pg, "04-rating")
         pg.reload(); pg.wait_for_selector("#result:not([hidden])")
-        check(pg.inner_text("#rateSave") == "Update rating" and "on" in (pg.get_attribute("#scale button[data-n='7']", "class") or ""), "rating remembered after reload")
-        pg.click(".tabbar button[data-go='log']"); shot(pg, "22-log", True)
+        check(pg.text_content("#rateSave") == "Update rating" and "on" in (pg.get_attribute("#scale button[data-n='7']", "class") or ""), "rating remembered after reload")
+        open_dev(pg); shot(pg, "22-log", True)
         pg.click(".log-item .del"); pg.wait_for_timeout(100)
         check(pg.is_hidden("#logCard") and not pg.is_hidden("#logEmpty"), "deleting the only entry shows the empty state")
         ctx.close()
@@ -370,17 +398,17 @@ def main():
         print("Past date")
         ctx, pg = new_page()
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
-        pg.click(".tabbar button[data-go='log']"); pg.fill("#pastDate", "2026-10-20"); pg.click("#pastGo")
+        open_dev(pg); pg.fill("#pastDate", "2026-10-20"); pg.click("#pastGo")
         pg.wait_for_selector("#pastBar:not([hidden])", timeout=10000); pg.wait_for_timeout(300)
         check("20 Oct" in pg.inner_text("#when"), "hero shows the past date: " + pg.inner_text("#when"))
         check(pg.is_hidden("#weekCard") and pg.is_hidden("#nearCard"), "forecast-only cards hidden")
         check(not pg.is_hidden("#rateCard") and "20 oct" in pg.inner_text("#rateTitle").lower(), "can rate the past date: " + pg.inner_text("#rateTitle"))
-        pg.click("#scale button[data-n='6']"); pg.click("#rateSave")
+        pg.click("#quick button[data-n='6']"); pg.wait_for_timeout(300)
         check("(1)" in pg.eval_on_selector("#logCount", "e => e.textContent"), "past rating logged")
         shot(pg, "08-past")
         pg.click("#pastBack"); pg.wait_for_timeout(200)
         check(not pg.is_hidden("#weekCard") and pg.is_hidden("#pastBar"), "back to the forecast")
-        pg.click(".tabbar button[data-go='log']")
+        open_dev(pg)
         pg.fill("#pastDate", "2099-01-01"); pg.click("#pastGo")
         check("earlier" in pg.inner_text("#pastStatus"), "future date rejected")
         ctx.close()
