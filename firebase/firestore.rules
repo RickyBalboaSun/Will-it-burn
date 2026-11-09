@@ -17,8 +17,7 @@ service cloud.firestore {
                                                  "predicted", "place", "lat", "lon", "w", "h", "model"])
         && request.resource.data.kind in ["sunset", "sunrise"]
         && request.resource.data.lat is number && request.resource.data.lon is number
-        && request.resource.data.thumb is string && request.resource.data.thumb.size() < 60000
-        && request.resource.data.thumb.matches("data:image/jpeg;base64,.*");
+        && request.resource.data.thumb is string && request.resource.data.thumb.size() < 60000;
       // only the admin approves or rejects
       allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "reviewedAt"]);
       allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
