@@ -292,3 +292,7 @@ html.host-badge .tabbar { padding-bottom: calc(52px + env(safe-area-inset-bottom
 .vp .near-item { margin: 0; }
 .vp-go { display: flex; align-items: center; justify-content: center; min-width: 52px; padding: 0 10px; border-radius: 12px; background: rgba(255,255,255,0.1); font-size: 13px; font-weight: 600; text-decoration: none; }
 .near-list .vp + .vp { margin-top: 6px; }
+
+.quick button b { font-weight: 600; }
+.quick button small { font-size: 11px; font-weight: 500; opacity: 0.7; margin-top: -4px; font-variant-numeric: tabular-nums; }
+.quick button { min-height: 88px; }

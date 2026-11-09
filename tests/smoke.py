@@ -362,15 +362,15 @@ def main():
         pg.click("#rateMore summary")
         pg.click("#rateSave"); check("first" in pg.inner_text("#rateMsg"), "must pick before saving")
         pg.click("#quick button[data-n='8']"); pg.wait_for_function("document.getElementById('rateMsg').textContent.includes('Saved')", timeout=8000)
-        check("Great" in pg.inner_text("#rateMsg") and "on" in (pg.get_attribute("#quick button[data-n='8']", "class") or ""), "one tap saves: " + pg.inner_text("#rateMsg"))
+        check("Great (75–89)" in pg.inner_text("#rateMsg") and "The app said" in pg.inner_text("#rateMsg") and "on" in (pg.get_attribute("#quick button[data-n='8']", "class") or ""), "one tap saves: " + pg.inner_text("#rateMsg"))
         check(logs_count(pg) == 1, "one-tap rating is in the log")
         pg.wait_for_timeout(300)
         sent = [json.loads(x["entry"][0]) for x in posted if x.get("form-name") == ["rating"]]
-        check(len(sent) >= 1 and sent[-1]["rating"] == 8 and sent[-1]["lat"] == round(sent[-1]["lat"], 2) and "place" not in sent[-1],
+        check(len(sent) >= 1 and sent[-1]["rating"] == 8 and sent[-1]["band"] == "75-89" and sent[-1]["lat"] == round(sent[-1]["lat"], 2) and "place" not in sent[-1],
               "rating shared anonymously: " + (json.dumps(sent[-1])[:120] if sent else "nothing posted"))
         check(pg.is_hidden("#rateBanner"), "banner gone once rated")
         pg.click("#scale button[data-n='7']")
-        check("Strong colour" in pg.inner_text("#rubric"), "rubric text for 7")
+        check("Good (50–74)" in pg.inner_text("#rubric"), "detail scale uses the same windows: " + pg.inner_text("#rubric"))
         pg.fill("#rateNotes", "Pink underlit altocumulus, peaked 10 min after sunset")
         if os.path.exists(PHOTO):
             pg.set_input_files("#ratePhoto", PHOTO)

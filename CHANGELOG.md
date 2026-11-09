@@ -5,7 +5,7 @@
 
 ## 4.5 – 8 Nov 2026
 - **Model 1.3.0 (provisional):** a clean clear sky now starts at 50, not 25, and keeps the "Clear: simple glow" verdict up to 74. Three of three clear-ish skies were rated far above the forecast. To be rechecked at about 15 ratings.
-- **One-tap rating:** Dull, Some colour, Good, Great or On fire. Exact score, note and photo are optional under "Add detail".
+- **One-tap rating:** Dull (0–24), Some colour (25–49), Good (50–74), Great (75–89) or On fire (90–100), the same windows as the app's score, so a rating reads straight against the forecast. Exact score, note and photo are optional under "Add detail".
 - **Ratings shared anonymously** to Netlify Forms (rating, forecast inputs, time, area rounded to ~1 km). Off switch in More. Unsent ratings retry on the next visit.
 - **Nudges:** a "Rate it" banner at the top of Today after the event; "Add to calendar" also adds a short "Rate the sunset" reminder afterwards.
 - **Viewpoints near you** (Spots): named viewpoints, beaches, cliffs and peaks from OpenStreetMap (Overpass), scored for the same event, ranked with a terrain check of the view towards the sun, with directions. Falls back to the old area scan where nothing is mapped.

@@ -428,11 +428,11 @@ for (const [id, kind] of [["kindSunset", "sunset"], ["kindSunrise", "sunrise"]])
 
 /* ---------- rating and log ---------- */
 const RUBRIC = n => n == null ? "Rate the colour in the sky, not the photo."
-  : n <= 2 ? "Grey or no visible colour"
-  : n <= 4 ? "A coloured band on the horizon only"
-  : n <= 6 ? "Some clouds lit up, colour in part of the sky"
-  : n <= 8 ? "Strong colour across much of the sky"
-  : "Exceptional: the whole sky lit up";
+  : `${bandText(n)}: ` + (n <= 2 ? "grey, or no visible colour"
+  : n <= 4 ? "a coloured band on the horizon, a little in the clouds"
+  : n <= 7 ? "clouds lit up, colour across part of the sky"
+  : n <= 8 ? "strong colour across much of the sky"
+  : "exceptional: the whole sky lit up");
 const logAll = () => store.get("wib-log", []);
 const isoDay = (unix, off) => { const d = localDate(unix, off); return d.toISOString().slice(0, 10); };
 const entryId = (kind, t, off, place) => `${kind}-${isoDay(t, off)}-${place.lat.toFixed(3)},${place.lon.toFixed(3)}`;
@@ -498,19 +498,26 @@ function renderRate() {
   if (existing) setLogLink(existing);
   photoMeta = existing ? existing.photoMeta || "" : ""; $("photoMeta").textContent = ""; $("ratePhoto").value = "";
   $("rateSave").textContent = existing ? "Update rating" : "Save rating";
-  $("rateMsg").textContent = existing ? `Saved: ${QUICK_NAME(existing.rating)}. Tap another to change it.` : "";
+  $("rateMsg").textContent = existing ? `Saved: ${bandText(existing.rating)}. The app said ${existing.predicted}. Tap another to change it.` : "";
   $("rateMore").open = false;
   $("rateShareNote").hidden = !sharing() || !!existing;
   drawScale();
   renderRateBanner();
 }
-const QUICK_NAME = n => n <= 2 ? "Dull" : n <= 4 ? "Some colour" : n <= 6 ? "Good" : n <= 8 ? "Great" : "On fire";
+/* One-tap bands line up with the app's 0–100 score, so a rating reads straight against the forecast. */
+const BANDS = [
+  { name: "Dull", lo: 0, hi: 24 }, { name: "Some colour", lo: 25, hi: 49 }, { name: "Good", lo: 50, hi: 74 },
+  { name: "Great", lo: 75, hi: 89 }, { name: "On fire", lo: 90, hi: 100 },
+];
+const bandFor = score100 => BANDS.find(b => score100 <= b.hi) || BANDS[BANDS.length - 1];
+const QUICK_NAME = n => bandFor(n * 10).name;
+const bandText = n => { const b = bandFor(n * 10); return `${b.name} (${b.lo}–${b.hi})`; };
 function drawScale() {
   $("scale").innerHTML = Array.from({ length: 11 }, (_, n) =>
     `<button role="radio" aria-checked="${rateSel === n}" class="${rateSel === n ? "on" : ""}" data-n="${n}">${n}</button>`).join("");
   $("rubric").textContent = RUBRIC(rateSel);
   document.querySelectorAll("#quick button").forEach(b => {
-    const on = rateSel != null && QUICK_NAME(rateSel) === b.textContent.trim();
+    const on = rateSel != null && QUICK_NAME(rateSel) === b.dataset.band;
     b.classList.toggle("on", on); b.setAttribute("aria-checked", on);
   });
 }
@@ -540,7 +547,7 @@ async function saveRating(quick) {
   const log = logAll().filter(x => x.id !== entry.id);
   log.push(entry); log.sort((a, b) => b.t - a.t);
   store.set("wib-log", log);
-  $("rateMsg").innerHTML = `Thanks. Saved: <b>${QUICK_NAME(entry.rating)}</b>${quick ? "" : ` (${entry.rating}/10)`}${entry.onLocation ? ' <span class="badge-ok">✓ on location</span>' : ""}`;
+  $("rateMsg").innerHTML = `Thanks. Saved: <b>${bandText(entry.rating)}</b>${quick ? "" : `, ${entry.rating}/10`}. The app said ${entry.predicted}${entry.onLocation ? ' <span class="badge-ok">✓ on location</span>' : ""}`;
   $("rateShare").hidden = false; $("rateSave").textContent = "Update rating";
   setLogLink(entry);
   renderLog(); renderRateBanner();
@@ -559,6 +566,7 @@ function sharePayload(x) {
   const dev = isDev(), r = v => Math.round(v * 100) / 100; // about 1 km for everyone but the developer
   return {
     id: x.id, kind: x.kind, date: x.date, t: x.t, rating: x.rating, predicted: x.predicted, model: x.model,
+    band: (b => `${b.lo}-${b.hi}`)(bandFor(x.rating * 10)), predictedBand: (b => `${b.lo}-${b.hi}`)(bandFor(x.predicted)),
     inputs: x.inputs, facing: x.facing, onLocation: !!x.onLocation,
     lat: dev ? x.place.lat : r(x.place.lat), lon: dev ? x.place.lon : r(x.place.lon),
     place: dev ? x.place.name : undefined, notes: dev ? x.notes || "" : undefined, savedAt: x.savedAt,
