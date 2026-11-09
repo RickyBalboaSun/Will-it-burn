@@ -1461,7 +1461,7 @@ setTimeout(shareBacklog, 4000);
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.7.3";
+const RELEASE = "4.7.4";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

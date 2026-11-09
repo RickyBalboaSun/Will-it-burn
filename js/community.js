@@ -56,11 +56,14 @@ export function initCommunity(ctx) {
   const dateText = p => new Date(p.date + "T12:00:00Z").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 
   /* ---------- the map tab ---------- */
+  const BAND_RANK = { "On fire": 4, "Great": 3, "Good": 2, "Some colour": 1, "Dull": 0 };
   function filtered(list) {
     const now = Date.now();
-    return list.filter(p => (kind === "all" || p.kind === kind)
-      && (period === "tonight" ? p.t * 1000 > now - 20 * 3600000 : p.t * 1000 > now - 7 * DAY)
+    const out = list.filter(p => (kind === "all" || p.kind === kind)
+      && (period === "best" ? BAND_RANK[p.band] >= 3 : period === "tonight" ? p.t * 1000 > now - 20 * 3600000 : p.t * 1000 > now - 7 * DAY)
       && (!fireOnly || p.band === "On fire"));
+    // best ever: On fire first, then Great, newest first within each; capped so the map stays light
+    return period === "best" ? out.sort((a, b) => BAND_RANK[b.band] - BAND_RANK[a.band] || b.createdAt - a.createdAt).slice(0, 60) : out;
   }
   const kindWord = { all: "skies", sunset: "sunsets", sunrise: "sunrises" };
   async function renderTab(force = false) {
@@ -72,8 +75,8 @@ export function initCommunity(ctx) {
     catch { say("commStatus", "Couldn't load photos right now."); return; }
     const list = filtered(feedCache);
     $("commCount").textContent = list.length ? `${list.length} ${list.length === 1 ? "sky" : "skies"}` : "";
-    $("commStripTitle").textContent = `${period === "tonight" ? "Latest" : "This week"}: ${kindWord[kind]} around the world`;
-    say("commStatus", list.length ? "" : `No ${kind === "all" ? "" : kind + " "}photos here yet. Rate a sky at the bottom of Today and add your photo to be the first.`);
+    $("commStripTitle").textContent = `${{ tonight: "Latest", week: "This week", best: "Best ever" }[period]}: ${kindWord[kind]} around the world`;
+    say("commStatus", list.length ? "" : `No ${period === "best" ? "Great or On fire " : ""}${kind === "all" ? "" : kind + " "}photos here yet. Rate a sky at the bottom of Today and add your photo to be the first.`);
     $("commStrip").innerHTML = list.slice(0, 24).map(p => `
       <button class="comm-card" data-id="${esc(p.id)}">
         <img alt="" data-id="${esc(p.id)}" loading="lazy">
@@ -128,8 +131,9 @@ export function initCommunity(ctx) {
   for (const [id, k] of KINDS) {
     $(id).addEventListener("click", () => { kind = k; for (const [i2, k2] of KINDS) $(i2).classList.toggle("on", k2 === k); renderTab(); });
   }
-  for (const [id, p] of [["commTonight", "tonight"], ["commWeek", "week"]]) {
-    $(id).addEventListener("click", () => { period = p; $("commTonight").classList.toggle("on", p === "tonight"); $("commWeek").classList.toggle("on", p === "week"); renderTab(); });
+  const PERIODS = [["commTonight", "tonight"], ["commWeek", "week"], ["commBest", "best"]];
+  for (const [id, p] of PERIODS) {
+    $(id).addEventListener("click", () => { period = p; for (const [i2, p2] of PERIODS) $(i2).classList.toggle("on", p2 === p); renderTab(); });
   }
   $("commFire").addEventListener("click", () => { fireOnly = !fireOnly; $("commFire").classList.toggle("on", fireOnly); renderTab(); });
   $("commAdd").addEventListener("click", () => openComposer(null));

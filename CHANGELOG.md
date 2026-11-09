@@ -8,6 +8,9 @@
 
 
 
+
+## 4.7.4
+- Community: new **Best ever** chip (Robin's idea): Great and On fire photos from any date, On fire first, newest first within each, up to 60 on the map.
 ## 4.7.3
 - Community opens on **All** (sunsets and sunrises together); Sunsets / Sunrises narrow it. Strip cards say which.
 - Faster: the map and tiles start at once instead of after Firebase; the photo feed no longer waits for anonymous sign-in (approved photos are public); the map and Firebase code are fetched quietly 4 s after the app opens (skipped on data saver / 2G).
