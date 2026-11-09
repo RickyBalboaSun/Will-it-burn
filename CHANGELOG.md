@@ -6,6 +6,9 @@
 
 
 
+
+## 4.7.2
+- Removed the "Copy entry" button from the rating card (the GitHub row only shows when a log repository is set).
 ## 4.7.1
 - Community photos work on Firebase's free plan (no card needed): no Cloud Storage. The thumbnail (240 px) lives in the photo record and the full picture (up to 1280 px, under 560 KB) in `images/{id}`, both as JPEG data URLs.
 - New Firestore rules cover `images`; `firebase/storage.rules` removed.

@@ -453,7 +453,6 @@ const githubLogging = () => !!logRepo();
 function applyLogMode() {
   const gh = githubLogging();
   $("rateLog").hidden = !gh;
-  $("rateCopy").className = gh ? "btn small ghost" : "btn small linkbtn-solid";
 }
 
 /* position at the moment of rating, for the on-location check */
@@ -496,7 +495,7 @@ function renderRate() {
   $("rateTitle").textContent = dn === "Tonight" || dn === "Today" ? `How was ${dn.toLowerCase()}'s ${word}?` : `How was the ${word} on ${dn}?`;
   $("rateSub").textContent = `The app ${state.past ? "would have predicted" : "predicted"} ${e.score}/100 for the ${word} at ${clock(e.t, off)}. Your rating helps tune the model.`;
   $("rateNotes").value = existing ? existing.notes : "";
-  $("rateShare").hidden = !existing;
+  $("rateShare").hidden = !existing || !githubLogging();
   if (existing) setLogLink(existing);
   photoMeta = existing ? existing.photoMeta || "" : ""; $("photoMeta").textContent = ""; $("ratePhoto").value = "";
   $("rateSave").textContent = existing && existing.notes ? "Update note" : "Save note";
@@ -545,7 +544,7 @@ async function saveRating(quick) {
   store.set("wib-log", log);
   const said = `${quick ? "" : " with your note"}. The app said ${entry.predicted}${entry.onLocation && isDev() ? ' <span class="badge-ok">✓ on location</span>' : ""}`;
   $("rateMsg").innerHTML = sharing() ? `Sending <b>${bandText(entry.rating)}</b>…` : `Saved: <b>${bandText(entry.rating)}</b>${said}.`;
-  $("rateShare").hidden = false; $("rateSave").textContent = entry.notes ? "Update note" : "Save note";
+  $("rateShare").hidden = !githubLogging(); $("rateSave").textContent = entry.notes ? "Update note" : "Save note";
   setLogLink(entry);
   renderLog(); renderRateBanner();
   if (community && community.enabled && !state.past) community.offerAfterRating(entry);
@@ -637,10 +636,6 @@ async function copyText(text, msgEl) {
   }
   msgEl.textContent = "Copied.";
 }
-$("rateCopy").addEventListener("click", () => {
-  const e = logAll().find(x => x.id === entryId(state.data.kind, rateEvent.t, state.data.offset, state.place));
-  if (e) copyText("Sunscore log entry\n" + entryText(e), $("rateMsg"));
-});
 
 function renderLog() {
   const log = logAll();
@@ -1465,7 +1460,7 @@ setTimeout(shareBacklog, 4000);
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.7.1";
+const RELEASE = "4.7.2";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");
