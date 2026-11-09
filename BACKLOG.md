@@ -70,3 +70,5 @@ Suggested first batch: UI 1–6 and 9 plus the daily nudge, one upload.
 - Storage: Firebase (Cloud Storage + Firestore + anonymous sign-in), shared with the friends check-in. Needs the Blaze plan (card), expected £0; £1 budget alert; per-person upload limits.
 - Flow: rate → "Add your photo to the map?" → consent → pending → automatic check + approval queue (Developer view) → on the map. Your photos page with delete / delete all / hide all.
 - Mockup: https://claude.ai/artifact/FvoVXBx66w8AUWRAZtmGon
+- Built in 4.7 (8 Nov, overnight): Community tab, add-photo flow, your photos, moderation queue; off until js/firebase-config.js is filled. Setup guide: https://claude.ai/artifact/DVL7D486fb2Qv2nRs8MXnf
+- Not in v1 (later): automatic image screening (needs Cloud Functions + Vision), hide-all switch, clustering when many pins, App Check against abuse.
