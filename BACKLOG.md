@@ -38,3 +38,30 @@ How features are prioritised: **value to someone deciding whether to go and watc
 - **Native app store release** – see the roadmap discussion; Expo rebuild.
 - **Photo-based auto-rating** – vision model on user photos; needs an API key and privacy design.
 - **Community ratings** – needs accounts and a backend.
+
+
+## Review of 4.6 (8 Nov 2026), awaiting Robin's decision
+
+### UI before wider testing
+1. One scale everywhere: Dull 0–24 · Some colour 25–49 · Good 50–74 · Great 75–89 · On fire 90–100 (verdicts, key, rating). Key becomes a thin coloured bar with a marker.
+2. Calmer top of Today: location panel collapsed to one line (place, height, ⚠); detail on tap.
+3. Rate banner: "Tonight's sunset has gone — how was it?", placed under the hero, not above it.
+4. Local units: miles/feet and 12-hour time from the phone's locale (US testers).
+5. Leaner hero: drop the key (see 1); confidence as one small line under the verdict.
+6. Week strip: day, score and one weather icon; all 7 days fit.
+7. Spots: auto-run viewpoints on opening, default 25 km, one-line description.
+8. Polish: logo mark in header; contrast of faint text on orange; remove duplicate "How it works"; skeleton while loading.
+9. First-open welcome card.
+
+### Features
+- Live sky check: NASA GIBS satellite cloud imagery on the light path map in the last 2 hours.
+- Best spot tonight: score heat map across ~100 km.
+- Daily nudge: optional notification at a chosen time with tonight's score and timing.
+- Plan ahead: any place and day this week.
+- Comfort at sunset: temperature, wind, "bring a jacket".
+- Moon and blue hour times.
+- "How we did": public accuracy page.
+- Friends check-in (needs Firebase).
+- Community tab (Robin's idea): anonymised photos pinned on a world map. Needs photo storage, moderation, EXIF stripping and rounded locations; pairs with friends check-in.
+
+Suggested first batch: UI 1–6 and 9 plus the daily nudge, one upload.
