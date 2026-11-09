@@ -304,3 +304,6 @@ html.host-badge .tabbar { padding-bottom: calc(52px + env(safe-area-inset-bottom
 .install-text { font-size: 13px; line-height: 1.35; }
 .install-bar .btn { min-height: 36px; padding: 0 14px; }
 .install-x { background: none; border: 0; font-size: 22px; line-height: 1; opacity: 0.6; padding: 4px 6px; }
+
+/* developer-only controls */
+html:not(.dev) .dev-only { display: none !important; }

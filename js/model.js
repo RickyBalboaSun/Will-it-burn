@@ -439,12 +439,12 @@ export const VIEW_KINDS = {
 /** Overpass QL for named viewpoints, beaches, cliffs and peaks within radiusKm. */
 export function overpassQuery(lat, lon, radiusKm) {
   const a = `(around:${Math.round(radiusKm * 1000)},${lat.toFixed(5)},${lon.toFixed(5)})`;
-  return `[out:json][timeout:25];(` +
+  return `[out:json][timeout:12];(` +
     `node["tourism"="viewpoint"]${a};way["tourism"="viewpoint"]${a};` +
     `node["natural"="beach"]["name"]${a};way["natural"="beach"]["name"]${a};` +
     `node["natural"="cliff"]["name"]${a};way["natural"="cliff"]["name"]${a};` +
     `node["natural"="peak"]["name"]${a};` +
-    `);out center 300;`;
+    `);out center qt 200;`;
 }
 function bearing(lat1, lon1, lat2, lon2) {
   const r = d => d * Math.PI / 180, p1 = r(lat1), p2 = r(lat2), dl = r(lon2 - lon1);

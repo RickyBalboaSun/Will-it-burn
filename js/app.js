@@ -497,7 +497,7 @@ function renderRate() {
   if (existing) setLogLink(existing);
   photoMeta = existing ? existing.photoMeta || "" : ""; $("photoMeta").textContent = ""; $("ratePhoto").value = "";
   $("rateSave").textContent = existing && existing.notes ? "Update note" : "Save note";
-  $("rateMsg").textContent = existing ? `Saved: ${bandText(existing.rating)}. The app said ${existing.predicted}. Tap another to change it.` : "";
+  $("rateMsg").textContent = existing ? `Your rating: ${bandText(existing.rating)}. The app said ${existing.predicted}. Tap another to change it.` : "";
   $("rateMore").open = false;
   $("rateShareNote").hidden = !sharing() || !!existing;
   drawScale();
@@ -540,11 +540,16 @@ async function saveRating(quick) {
   const log = logAll().filter(x => x.id !== entry.id);
   log.push(entry); log.sort((a, b) => b.t - a.t);
   store.set("wib-log", log);
-  $("rateMsg").innerHTML = `Thanks. Saved: <b>${bandText(entry.rating)}</b>${quick ? "" : " with your note"}. The app said ${entry.predicted}${entry.onLocation ? ' <span class="badge-ok">✓ on location</span>' : ""}`;
+  const said = `${quick ? "" : " with your note"}. The app said ${entry.predicted}${entry.onLocation && isDev() ? ' <span class="badge-ok">✓ on location</span>' : ""}`;
+  $("rateMsg").innerHTML = sharing() ? `Sending <b>${bandText(entry.rating)}</b>…` : `Saved: <b>${bandText(entry.rating)}</b>${said}.`;
   $("rateShare").hidden = false; $("rateSave").textContent = entry.notes ? "Update note" : "Save note";
   setLogLink(entry);
   renderLog(); renderRateBanner();
-  shareRating(entry);
+  if (sharing()) {
+    const ok = await shareRating(entry);
+    $("rateMsg").innerHTML = ok ? `✓ Sent: <b>${bandText(entry.rating)}</b>${said}. Thank you!`
+      : `Saved: <b>${bandText(entry.rating)}</b>${said}. It will send when you're back online.`;
+  }
 }
 
 /* ---------- anonymous rating sharing (Netlify Forms) ---------- */
@@ -562,7 +567,7 @@ function sharePayload(x) {
     band: (b => `${b.lo}-${b.hi}`)(bandFor(x.rating * 10)), predictedBand: (b => `${b.lo}-${b.hi}`)(bandFor(x.predicted)),
     inputs: x.inputs, air: x.air ?? null, facing: x.facing, onLocation: !!x.onLocation,
     lat: dev ? x.place.lat : r(x.place.lat), lon: dev ? x.place.lon : r(x.place.lon),
-    place: dev ? x.place.name : undefined, notes: dev ? x.notes || "" : undefined, savedAt: x.savedAt,
+    place: dev ? x.place.name : undefined, notes: (x.notes || "").slice(0, 300), savedAt: x.savedAt,
   };
 }
 async function shareRating(x) {
@@ -626,7 +631,7 @@ async function copyText(text, msgEl) {
     ta.remove();
     if (!ok) { msgEl.textContent = "Couldn't copy automatically on this phone."; return; }
   }
-  msgEl.textContent = "Copied. Paste it into Claude with your photo.";
+  msgEl.textContent = "Copied.";
 }
 $("rateCopy").addEventListener("click", () => {
   const e = logAll().find(x => x.id === entryId(state.data.kind, rateEvent.t, state.data.offset, state.place));
@@ -645,7 +650,7 @@ function renderLog() {
       <div class="log-actions">
         ${githubLogging()
           ? `<a class="btn small ${x.sentAt ? "ghost" : "linkbtn-solid"} log-send" data-id="${esc(x.id)}" href="${esc(logUrl(x))}" target="_blank" rel="noopener">${x.sentAt ? "Logged ✓ · log again" : "Log on GitHub"}</a>`
-          : `<button class="btn small ghost log-copy" data-id="${esc(x.id)}">Copy for Claude</button>`}
+          : `<button class="btn small ghost log-copy" data-id="${esc(x.id)}">Copy</button>`}
         <button class="del" data-id="${esc(x.id)}">Delete</button>
       </div>
     </div>`).join("");
@@ -767,6 +772,7 @@ document.querySelectorAll(".radius").forEach(b => b.addEventListener("click", ()
   nearRadius = Number(b.dataset.r);
   document.querySelectorAll(".radius").forEach(x => x.classList.toggle("on", x === b));
 }));
+let lastVpFailed = false;
 $("scanBtn").addEventListener("click", async () => {
   $("scanBtn").disabled = true; $("nearList").innerHTML = "";
   try {
@@ -778,32 +784,76 @@ $("scanBtn").addEventListener("click", async () => {
 });
 
 /* real places from OpenStreetMap; returns false if there are too few to be useful */
-const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+/* OpenStreetMap lookups. Overpass servers are busy volunteers' machines, so ask several at once and take the
+   first good answer; if none answers, fall back to Nominatim (OSM's search) for viewpoints alone. */
+const OVERPASS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+];
+const vpDiag = msg => { if (isDev()) store.set("wib-vp-diag", `${new Date().toISOString().slice(11, 19)} ${msg}`); };
 async function overpass(query) {
-  for (const url of OVERPASS) {
-    const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 20000);
+  const ctrls = OVERPASS.map(() => new AbortController());
+  const timer = setTimeout(() => ctrls.forEach(c => c.abort()), 15000);
+  try {
+    return await Promise.any(OVERPASS.map(async (url, i) => {
+      const r = await fetch(url + "?data=" + encodeURIComponent(query), { signal: ctrls[i].signal });
+      if (!r.ok) throw new Error(`${new URL(url).host} HTTP ${r.status}`);
+      const j = await r.json();
+      if (!j || !Array.isArray(j.elements)) throw new Error(`${new URL(url).host} bad reply`);
+      ctrls.forEach((c, k) => { if (k !== i) c.abort(); });
+      vpDiag(`overpass ok via ${new URL(url).host}: ${j.elements.length} elements`);
+      return j;
+    }));
+  } catch (e) {
+    vpDiag("overpass failed: " + (e.errors ? e.errors.map(x => x.message).join("; ") : e.message));
+    throw new Error("overpass unavailable");
+  } finally { clearTimeout(timer); }
+}
+async function nominatimViewpoints(lat, lon, R) {
+  const dLat = R / 111, dLon = R / (111 * Math.cos(lat * Math.PI / 180));
+  const box = [lon - dLon, lat + dLat, lon + dLon, lat - dLat].map(v => v.toFixed(4)).join(",");
+  const out = [];
+  for (const [q, tags] of [["viewpoint", { tourism: "viewpoint" }], ["beach", { natural: "beach" }]]) {
     try {
-      const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data: query }), signal: ctrl.signal });
-      if (r.ok) return await r.json();
-    } catch { /* try the next server */ } finally { clearTimeout(timer); }
+      const res = await getJSON(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${q}&viewbox=${box}&bounded=1&limit=40`, 10000);
+      for (const r of res) if (r.type === q) out.push({ lat: +r.lat, lon: +r.lon, tags: { ...tags, name: r.name || "" } });
+    } catch { /* skip */ }
   }
-  throw new Error("overpass unavailable");
+  vpDiag(`nominatim: ${out.length} places`);
+  return { elements: out };
+}
+/** Horizon angle towards the sun for many places at once: batched elevation lookups, run in parallel. */
+async function terrainMany(places, az) {
+  const per = M.TERRAIN_KM.length, chunk = Math.max(1, Math.floor(100 / per));
+  const jobs = [];
+  for (let i = 0; i < places.length; i += chunk) {
+    const group = places.slice(i, i + chunk);
+    const pts = group.flatMap(p => M.TERRAIN_KM.map(km => M.destination(p.lat, p.lon, az, km)));
+    jobs.push(getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${pts.map(p => p[0].toFixed(5)).join(",")}&longitude=${pts.map(p => p[1].toFixed(5)).join(",")}`, 10000)
+      .then(d => group.forEach((p, k) => { p.view = M.viewOpenness(M.horizonAngle(d.elevation.slice(k * per, k * per + per)).angle); }))
+      .catch(() => { /* view unknown */ }));
+  }
+  await Promise.all(jobs);
 }
 const directionsUrl = x => `https://www.google.com/maps/dir/?api=1&destination=${x.lat.toFixed(5)},${x.lon.toFixed(5)}`;
 async function viewpointScan(R) {
   const p = state.place, e = state.events[state.sel], d = state.data;
   $("nearStatus").textContent = `Looking for viewpoints within ${R} km…`;
-  let places;
+  let places = [], failed = false;
   try { places = M.parseViewpoints(await overpass(M.overpassQuery(p.lat, p.lon, R)), p.lat, p.lon, 12); }
-  catch { places = []; }
-  if (places.length < 2) return false;
+  catch { failed = true; }
+  if (places.length < 2) {
+    $("nearStatus").textContent = "Still looking…";
+    try { places = M.parseViewpoints(await nominatimViewpoints(p.lat, p.lon, R), p.lat, p.lon, 12); } catch { places = []; }
+  }
+  if (places.length < 2) { lastVpFailed = failed; return false; }
   $("nearStatus").textContent = `Scoring ${places.length} places…`;
   const here = { lat: p.lat, lon: p.lon, dist: 0, dir: "", name: "Where you are", kindLabel: "" };
   const scored = (await scoreSpots([here, ...places], d.kind, e.t)).filter(x => x.score != null);
-  // the real horizon towards the sun for each place (cached; a few seconds the first time)
-  for (const x of scored) {
-    try { const h = await terrainFor(x.lat, x.lon, d.az); x.view = M.viewOpenness(h.angle); } catch { x.view = null; }
-  }
+  // the real horizon towards the sun for every place, in a few parallel lookups
+  $("nearStatus").textContent = "Checking the view towards the sun…";
+  await terrainMany(scored, d.az);
   for (const x of scored) x.rank = x.score - (x.view ? x.view.penalty : 0);
   const h = scored.find(x => x.dist === 0), spots = scored.filter(x => x.dist !== 0).sort((a, b) => b.rank - a.rank);
   const best = spots[0];
@@ -835,14 +885,15 @@ async function ringScan(R, fallback = false) {
       cands.push({ lat: la, lon: lo, dist: Math.round(ring), dir: M.compass(brg) });
     }
   }
-  $("nearStatus").textContent = `No mapped viewpoints found, so scanning ${cands.length} areas around you…`;
+  $("nearStatus").textContent = `Comparing the sky in ${cands.length} areas around you…`;
   {
     const scored = (await scoreSpots(cands, d.kind, e.t)).filter(x => x.score != null);
     const here = scored.find(x => x.dist === 0);
     scored.sort((a, b) => b.score - a.score);
     const best = scored[0];
     const spread = best.score - Math.min(...scored.map(x => x.score));
-    $("nearStatus").innerHTML = (fallback ? `No mapped viewpoints within ${R} km. Here's how the sky compares around you. ` : "") + (!here ? ""
+    $("nearStatus").innerHTML = (fallback ? (lastVpFailed ? "The map service didn't answer, so here's how the sky compares around you instead. "
+      : `No mapped viewpoints within ${R} km. Here's how the sky compares around you. `) : "") + (!here ? ""
       : best.dist !== 0 && best.score - here.score >= 8 ? `<b>${best.dist} km ${best.dir} looks better:</b> ${best.score} vs ${here.score} here.`
       : spread < 5 ? `<b>Much the same everywhere within ${R} km</b> (around ${here.score}), so there's no need to travel for this one.`
       : here.score >= 50 ? `<b>You're already in a good spot.</b> Nowhere within ${R} km scores clearly better than here (${here.score}).`
@@ -1011,16 +1062,16 @@ async function shareCard() {
   const place = (p.label || p.name).slice(0, 40);
   g.fillText(place, W / 2, 860);
   g.globalAlpha = 0.7; g.font = `400 30px ${sans}`;
-  g.fillText("rickybalboasun.github.io/Will-it-burn", W / 2, H - 60);
+  g.fillText((location.host + location.pathname).replace(/\/(index\.html)?$/, ""), W / 2, H - 60);
   g.globalAlpha = 1;
 
   const where = /^near /i.test(place) ? place.replace(/^near/i, "near") : `at ${place}`;
   const text = `${dayName(e.t, d.offset, d.kind)}'s ${d.kind} ${where}: ${e.score}/100, ${e.verdict.toLowerCase().replace(/!$/, "")}${e.score >= 50 ? " 🔥" : ""}`;
-  const url = location.href.split("#")[0];
+  const url = location.origin + location.pathname.replace(/index\.html$/, "");
   try {
     const blob = await new Promise(r => c.toBlob(r, "image/png"));
-    const file = new File([blob], "will-it-burn.png", { type: "image/png" });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text, title: "Sunscore" }); return; }
+    const file = new File([blob], "sunscore.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: `${text}\n${url}`, title: "Sunscore" }); return; }
     if (navigator.share) { await navigator.share({ text, url, title: "Sunscore" }); return; }
   } catch (err) { if (err && err.name === "AbortError") return; }
   copyText(`${text}\n${url}`, $("shareMsg"));
@@ -1332,7 +1383,7 @@ function showTab(name) {
   document.querySelectorAll(".tabbar button").forEach(b => { b.classList.toggle("on", b.dataset.go === name); b.setAttribute("aria-current", b.dataset.go === name ? "page" : "false"); });
   window.scrollTo(0, 0);
   if (name === "spots") renderMySpots();
-  if (name === "log") renderLog();
+  if (name === "log") { renderLog(); $("vpDiag").textContent = store.get("wib-vp-diag", "") ? "Last viewpoint lookup: " + store.get("wib-vp-diag", "") : ""; }
   if (name === "more") renderAlerts();
 }
 $("tabbar").addEventListener("click", e => { const b = e.target.closest("button[data-go]"); if (b) showTab(b.dataset.go); });
@@ -1375,7 +1426,7 @@ renderInstall();
 
 /* developer mode: tap the model version five times */
 let devTaps = 0, devTimer = null;
-function applyDev() { $("devCard").hidden = !isDev(); }
+function applyDev() { $("devCard").hidden = !isDev(); document.documentElement.classList.toggle("dev", isDev()); }
 $("modelVersion").addEventListener("click", () => {
   devTaps++; clearTimeout(devTimer); devTimer = setTimeout(() => { devTaps = 0; }, 1500);
   if (devTaps >= 5) { devTaps = 0; store.set("wib-dev", true); applyDev(); showTab("more"); $("devCard").scrollIntoView({ block: "center" }); }
@@ -1397,7 +1448,7 @@ setTimeout(shareBacklog, 4000);
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.5";
+const RELEASE = "4.6";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

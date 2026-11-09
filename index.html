@@ -152,17 +152,17 @@
       <div class="rate-msg" id="rateMsg"></div>
       <div class="rate-share-note" id="rateShareNote">Ratings are shared anonymously to improve forecasts. You can turn this off in More.</div>
       <details class="rate-more" id="rateMore">
-        <summary>Add a note or photo</summary>
-        <textarea class="field notes" id="rateNotes" rows="2" placeholder="Where was the colour? When did it peak?"></textarea>
-        <label class="photo-pick"><input type="file" accept="image/*" id="ratePhoto"><span>Add your photo (optional)</span></label>
+        <summary>Add a note</summary>
+        <textarea class="field notes" id="rateNotes" rows="2" maxlength="300" placeholder="Where was the colour? When did it peak?"></textarea>
+        <label class="photo-pick dev-only"><input type="file" accept="image/*" id="ratePhoto"><span>Add your photo (developer check)</span></label>
         <div class="photo-meta" id="photoMeta"></div>
         <div class="row">
-          <button class="btn small" id="rateSave">Save note</button>
+          <button class="btn small" id="rateSave">Send note</button>
         </div>
       </details>
-      <div class="row" id="rateShare" hidden>
-        <a class="btn small linkbtn-solid" id="rateLog" target="_blank" rel="noopener">Log it on GitHub</a>
-        <button class="btn small ghost" id="rateCopy">Copy for Claude</button>
+      <div class="row dev-only" id="rateShare" hidden>
+        <a class="btn small linkbtn-solid" id="rateLog" target="_blank" rel="noopener">Log on GitHub</a>
+        <button class="btn small ghost" id="rateCopy">Copy entry</button>
       </div>
     </section>
     </div>
@@ -198,7 +198,7 @@
       <summary>Your ratings <span class="count" id="logCount"></span></summary>
       <div class="detail-body">
         <div id="logList"></div>
-        <button class="btn small ghost" id="logCopyAll">Copy all for Claude</button>
+        <button class="btn small ghost" id="logCopyAll">Copy all</button>
         <div class="rate-msg" id="logMsg"></div>
       </div>
     </details>
@@ -208,6 +208,7 @@
         <div class="row"><input class="field" id="logRepo" style="flex:1;min-height:44px;font-size:15px;padding:8px 12px" autocomplete="off" spellcheck="false" aria-label="GitHub repository for logs" placeholder="Optional: owner/repository"><button class="btn small" id="logRepoSave" style="flex:0 0 auto">Save</button></div>
         <div class="rate-msg" id="logRepoMsg"></div>
       </section>
+    <div class="note" id="vpDiag" style="margin:0 20px 10px"></div>
     <details class="card" id="pastCard" open>
       <summary>Check a past date</summary>
       <div class="detail-body">
@@ -289,13 +290,6 @@
     <li><b>One-tap rating</b> at the bottom of Today: Dull, Some colour, Good, Great or On fire. Ratings are shared anonymously to improve the forecast.</li>
     <li><b>Viewpoints near you</b> in Spots: real viewpoints, beaches, cliffs and peaks, each scored, with a check that the view towards the sun is open and a Go button for directions.</li>
     <li><b>Clear skies, scored for the air you're in</b>: clean, dry air gives a clear sky far more colour than hazy, humid air, so a clear evening now scores from about 30 on a hazy coast to about 60 somewhere like the Utah desert.</li>
-    <li><b>A new look</b>: Tonight, Spots, Log and More tabs along the bottom, so the main screen shows just what matters.</li>
-    <li><b>See the sky before you go</b>: a cartoon of the view facing the sunset, drawn from the forecast. Slide to see how the colour builds and fades.</li>
-    <li><b>Why this score</b> now opens with a side-on picture of the clouds between you and the sun, and whether the light gets through.</li>
-    <li><b>Mini skies</b> in the week strip and your spots show each day's cloud at a glance.</li>
-    <li><b>Fairer scores</b>: each forecast is now the middle of three weather models, and clear evenings say "Clear: simple glow".</li>
-    <li><b>Hills on the horizon</b>: the app checks the terrain towards the sun and tells you if the sun will drop behind a ridge early.</li>
-    <li><b>Log it on GitHub</b> after rating, with an on-location check and your photo's time and place.</li>
   </ul>
   <form method="dialog"><button class="btn" style="width:100%;margin-top:6px" autofocus>Let's see</button></form>
 </dialog>

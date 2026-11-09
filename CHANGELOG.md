@@ -3,6 +3,12 @@
 
 
 
+
+## 4.6 – 8 Nov 2026
+- **Viewpoints**: asks three OpenStreetMap servers at once (15 s limit) and falls back to OSM search (Nominatim) if none answers; the view check runs in parallel batches. Clearer messages when the map service is down. Last lookup shown in the Developer view.
+- **Rating**: confirms "✓ Sent" once the rating reaches the server; notes are sent too. Copy, GitHub and photo-check controls are developer-only; no mention of Claude or GitHub for users.
+- **Sharing**: share card and links use the app's own address (no old GitHub link).
+
 ## 4.5 – 8 Nov 2026
 - **Model 1.4.0: air clarity.** A clear sky's starting score now ranges from 30 (hazy, humid lowland) to 60 (clean, dry, high air, like Bryce), from aerosol optical depth (CAMS via Open-Meteo's air-quality API), humidity and altitude. Unknown haze counts as average. Used in the forecast, spots, viewpoints, past dates and alerts; recorded with every shared rating. No interface change.
 - **Model 1.3.0 (provisional):** a clean clear sky now starts at 50, not 25, and keeps the "Clear: simple glow" verdict up to 74. Three of three clear-ish skies were rated far above the forecast. To be rechecked at about 15 ratings.

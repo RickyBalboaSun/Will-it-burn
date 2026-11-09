@@ -52,6 +52,10 @@ def forecast_body(qs):
 
 
 AQ_CALLS = []
+NOMINATIM = [
+    {"lat": "37.05", "lon": "-110.18", "name": "John Ford's Point", "type": "viewpoint", "category": "tourism"},
+    {"lat": "37.02", "lon": "-110.25", "name": "Artist's Point", "type": "viewpoint", "category": "tourism"},
+]
 
 
 def handle(route):
@@ -130,6 +134,8 @@ def main():
         overpass_data = {"elements": []}
 
         def overpass_route(route):
+            if overpass_data.get("down"):
+                route.fulfill(status=504, body="busy"); return
             route.fulfill(status=200, body=json.dumps(overpass_data), content_type="application/json")
 
         def form_post(route):
@@ -156,7 +162,8 @@ def main():
                 content_type="text/css" if r.request.url.endswith(".css") else "application/javascript"))
             ctx.route("**/tile.openstreetmap.org/**", lambda r: r.fulfill(status=200, body=TILE, content_type="image/png"))
             ctx.route(lambda u: urlparse(u).path == "/", form_post)
-            ctx.route("**/api/interpreter", overpass_route)
+            ctx.route("**/api/interpreter*", overpass_route); ctx.route("**/*nominatim.openstreetmap.org/**", lambda r: r.fulfill(status=200, content_type="application/json",
+                body=json.dumps(NOMINATIM if overpass_data.get("down") and "q=viewpoint" in r.request.url else [])))
             pg = ctx.new_page()
             pg.on("pageerror", lambda e: errors.append(str(e)))
             pg.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and errors.append(m.text))
@@ -291,7 +298,15 @@ def main():
         pg.eval_on_selector("#nearCard", "e => e.scrollIntoView()"); shot(pg, "06b-viewpoints")
         pg.click(".vp .near-item[data-name='Paria View']"); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
         check(pg.inner_text("#locName") == "Paria View" and not pg.is_hidden("#tab-tonight"), "tapping a viewpoint opens it by name")
+        print("Viewpoints when Overpass is down")
+        overpass_data["down"] = True
+        pg.click(".tabbar button[data-go='spots']"); pg.click("#scanBtn")
+        pg.wait_for_function("document.querySelector('#nearStatus').textContent.includes('Best bet')", timeout=30000)
+        names = [b.get_attribute("data-name") for b in pg.query_selector_all(".vp .near-item")]
+        check("John Ford's Point" in names and "Artist's Point" in names, "falls back to OSM search: " + ", ".join(names))
+        overpass_data["down"] = False
         overpass_data["elements"] = []
+        pg.click(".tabbar button[data-go='tonight']")
         pg.click("#placeBtn"); pg.wait_for_selector("#picker:not([hidden])"); pg.click("#gpsBtn"); pg.wait_for_selector("#result:not([hidden])")
 
         pg.click("#kindSunrise"); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
@@ -371,8 +386,8 @@ def main():
         check("tonight" in pg.inner_text("#rateTitle").lower(), "asks about tonight")
         pg.click("#rateMore summary")
         pg.click("#rateSave"); check("first" in pg.inner_text("#rateMsg"), "must pick before saving")
-        pg.click("#quick button[data-n='8']"); pg.wait_for_function("document.getElementById('rateMsg').textContent.includes('Saved')", timeout=8000)
-        check("Great (75–89)" in pg.inner_text("#rateMsg") and "The app said" in pg.inner_text("#rateMsg") and "on" in (pg.get_attribute("#quick button[data-n='8']", "class") or ""), "one tap saves: " + pg.inner_text("#rateMsg"))
+        pg.click("#quick button[data-n='8']"); pg.wait_for_function("document.getElementById('rateMsg').textContent.includes('The app said')", timeout=8000)
+        check("Sent: Great (75–89)" in pg.inner_text("#rateMsg") and "Claude" not in pg.inner_text("#rateCard") and "GitHub" not in pg.inner_text("#rateCard") and "The app said" in pg.inner_text("#rateMsg") and "on" in (pg.get_attribute("#quick button[data-n='8']", "class") or ""), "one tap saves: " + pg.inner_text("#rateMsg"))
         check(logs_count(pg) == 1, "one-tap rating is in the log")
         pg.wait_for_timeout(300)
         sent = [json.loads(x["entry"][0]) for x in posted if x.get("form-name") == ["rating"]]
@@ -387,7 +402,7 @@ def main():
             pg.wait_for_function("document.getElementById('photoMeta').textContent.includes('Photo taken') || document.getElementById('photoMeta').textContent.includes('no time')", timeout=8000)
             check("Photo taken 17:31 (11 min after sunset)" in pg.inner_text("#photoMeta") and "m from the spot" in pg.inner_text("#photoMeta"), "photo time and place read: " + pg.inner_text("#photoMeta"))
         pg.click("#rateSave"); pg.wait_for_function("document.getElementById('rateMsg').textContent.includes('with your note')", timeout=10000)
-        check("on location" in pg.inner_text("#rateMsg"), "rated on location: " + pg.inner_text("#rateMsg"))
+        check(pg.evaluate("JSON.parse(localStorage.getItem('wib-log'))[0].onLocation") is True, "rated on location (stored): " + pg.inner_text("#rateMsg"))
         check(pg.is_hidden("#rateLog"), "GitHub logging off by default")
         pg.click(".tabbar button[data-go='more']"); open_dev(pg); pg.fill("#logRepo", "RickyBalboaSun/will-it-burn-data"); pg.click("#logRepoSave")
         pg.click(".tabbar button[data-go='tonight']")
