@@ -1452,6 +1452,7 @@ $("howBtn2").addEventListener("click", () => $("how").showModal());
 $("newBtn").addEventListener("click", () => $("whatsNew").showModal());
 
 /* ---------- start ---------- */
+setTimeout(() => { if (community) community.warm(); }, 4000); // fetch the Community map code quietly in the background
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", registerWorker);
 }
@@ -1460,7 +1461,7 @@ setTimeout(shareBacklog, 4000);
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.7.2";
+const RELEASE = "4.7.3";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

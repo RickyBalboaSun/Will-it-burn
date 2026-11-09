@@ -38,9 +38,9 @@ export const roundLL = v => Math.round(v * 100) / 100;
 export function initCommunity(ctx) {
   const { $, esc, store, state } = ctx;
   let backend = null, backendP = null, feedCache = null, map = null, layer = null;
-  let kind = state.kind || "sunset", period = "tonight", fireOnly = false, composerEvent = null, composerFile = null;
+  let kind = "all", period = "tonight", fireOnly = false, composerEvent = null, composerFile = null;
 
-  if (!enabled()) return { enabled: false, offerAfterRating() {}, renderMine() {}, renderQueue() {}, renderTab() {} };
+  if (!enabled()) return { enabled: false, offerAfterRating() {}, renderMine() {}, renderQueue() {}, renderTab() {}, warm() {} };
   $("tabCommunityBtn").hidden = false;
 
   async function ensure() {
@@ -58,59 +58,75 @@ export function initCommunity(ctx) {
   /* ---------- the map tab ---------- */
   function filtered(list) {
     const now = Date.now();
-    return list.filter(p => p.kind === kind
+    return list.filter(p => (kind === "all" || p.kind === kind)
       && (period === "tonight" ? p.t * 1000 > now - 20 * 3600000 : p.t * 1000 > now - 7 * DAY)
       && (!fireOnly || p.band === "On fire"));
   }
+  const kindWord = { all: "skies", sunset: "sunsets", sunrise: "sunrises" };
   async function renderTab(force = false) {
-    say("commStatus", "Loading skies…");
+    say("commStatus", feedCache && !force ? "" : "Loading skies…");
+    const mapP = baseMap();                       // map and tiles start straight away, alongside the photos
     let b;
     try { b = await ensure(); } catch { say("commStatus", "Couldn't reach the community right now. Try again in a minute."); return; }
     try { if (force || !feedCache) feedCache = await b.feed(); }
     catch { say("commStatus", "Couldn't load photos right now."); return; }
     const list = filtered(feedCache);
     $("commCount").textContent = list.length ? `${list.length} ${list.length === 1 ? "sky" : "skies"}` : "";
-    $("commStripTitle").textContent = `${period === "tonight" ? "Latest" : "This week"}: ${kind === "sunset" ? "sunsets" : "sunrises"} around the world`;
-    say("commStatus", list.length ? "" : `No ${kind === "sunset" ? "sunset" : "sunrise"} photos here yet. Rate one at the bottom of Today and add your photo to be the first.`);
-    await drawMap(list, b);
+    $("commStripTitle").textContent = `${period === "tonight" ? "Latest" : "This week"}: ${kindWord[kind]} around the world`;
+    say("commStatus", list.length ? "" : `No ${kind === "all" ? "" : kind + " "}photos here yet. Rate a sky at the bottom of Today and add your photo to be the first.`);
     $("commStrip").innerHTML = list.slice(0, 24).map(p => `
       <button class="comm-card" data-id="${esc(p.id)}">
-        <img alt="" data-path="${esc(p.path)}" loading="lazy">
+        <img alt="" data-id="${esc(p.id)}" loading="lazy">
         <span class="cc-place">${esc(p.place || "Somewhere")}</span>
-        <span class="cc-meta"><i style="background:${BAND_COLOURS[p.band] || "#ffa552"}"></i>${esc(p.band)} · ${ago(p.createdAt)}</span>
+        <span class="cc-meta"><i style="background:${BAND_COLOURS[p.band] || "#ffa552"}"></i>${p.kind === "sunrise" ? "Sunrise" : "Sunset"} · ${esc(p.band)} · ${ago(p.createdAt)}</span>
       </button>`).join("");
-    for (const img of $("commStrip").querySelectorAll("img[data-path]")) {
-      const p = list.find(x => x.path === img.dataset.path);
-      b.url(p, true).then(u => { img.src = u; }).catch(() => {});
+    for (const img of $("commStrip").querySelectorAll("img[data-id]")) {
+      const p = list.find(x => x.id === img.dataset.id);
+      if (p) b.url(p, true).then(u => { img.src = u; }).catch(() => {});
     }
+    await mapP; await drawPins(list, b);
   }
-  async function drawMap(list, b) {
-    let L; try { L = await ctx.loadLeaflet(); } catch { return; }
+  async function baseMap() {
+    let L; try { L = await ctx.loadLeaflet(); } catch { return null; }
     if (!map) {
       map = L.map("commMap", { zoomControl: false, worldCopyJump: true });
       L.tileLayer(ctx.TILE_URL, { maxZoom: 18, className: "dark-tiles", attribution: ctx.TILE_ATTR }).addTo(map);
+      map.setView(state.place ? [state.place.lat, state.place.lon] : [20, 0], 3);
     }
+    setTimeout(() => map.invalidateSize(), 60);
+    return L;
+  }
+  async function drawPins(list, b) {
+    const L = window.L; if (!L || !map) return;
     if (layer) layer.remove();
     layer = L.layerGroup().addTo(map);
     for (const p of list) {
       const icon = L.divIcon({ className: "cpin", iconSize: [46, 46], iconAnchor: [23, 23],
-        html: `<span class="cpin-ring" style="border-color:${BAND_COLOURS[p.band] || "#ffa552"}"><img alt="${esc(p.band)} sky"></span>` });
+        html: `<span class="cpin-ring" style="border-color:${BAND_COLOURS[p.band] || "#ffa552"}"><img alt="${esc(p.band)} ${esc(p.kind)}"></span>` });
       const m = L.marker([p.lat, p.lon], { icon, keyboard: true, title: `${p.place || ""}: ${p.band}` }).addTo(layer);
       m.on("click", () => openPhoto(p));
-      m.on("add", () => b.url(p, true).then(u => { const im = m.getElement() && m.getElement().querySelector("img"); if (im) im.src = u; }).catch(() => {}));
-      b.url(p, true).then(u => { const im = m.getElement() && m.getElement().querySelector("img"); if (im) im.src = u; }).catch(() => {});
+      const fill = () => b.url(p, true).then(u => { const im = m.getElement() && m.getElement().querySelector("img"); if (im) im.src = u; }).catch(() => {});
+      m.on("add", fill); fill();
     }
     const here = state.place ? [state.place.lat, state.place.lon] : [20, 0];
     if (list.length) map.fitBounds(L.latLngBounds([...list.map(p => [p.lat, p.lon]), here]).pad(0.2), { maxZoom: 8 });
     else map.setView(here, 3);
     setTimeout(() => map.invalidateSize(), 60);
   }
+  /** Fetch the map and Firebase code in the background, so the tab opens quickly later. */
+  function warm() {
+    const c = navigator.connection;
+    if (c && (c.saveData || /2g/.test(c.effectiveType || ""))) return;
+    ctx.loadLeaflet().catch(() => {});
+    ensure().then(b => b.feed()).then(f => { if (!feedCache) feedCache = f; }).catch(() => {});
+  }
   $("commStrip").addEventListener("click", ev => {
     const c = ev.target.closest(".comm-card"); if (!c || !feedCache) return;
     const p = feedCache.find(x => x.id === c.dataset.id); if (p) openPhoto(p);
   });
-  for (const [id, k] of [["commSunset", "sunset"], ["commSunrise", "sunrise"]]) {
-    $(id).addEventListener("click", () => { kind = k; $("commSunset").classList.toggle("on", k === "sunset"); $("commSunrise").classList.toggle("on", k === "sunrise"); renderTab(); });
+  const KINDS = [["commAll", "all"], ["commSunset", "sunset"], ["commSunrise", "sunrise"]];
+  for (const [id, k] of KINDS) {
+    $(id).addEventListener("click", () => { kind = k; for (const [i2, k2] of KINDS) $(i2).classList.toggle("on", k2 === k); renderTab(); });
   }
   for (const [id, p] of [["commTonight", "tonight"], ["commWeek", "week"]]) {
     $(id).addEventListener("click", () => { period = p; $("commTonight").classList.toggle("on", p === "tonight"); $("commWeek").classList.toggle("on", p === "week"); renderTab(); });
@@ -246,8 +262,9 @@ export function initCommunity(ctx) {
   async function renderQueue() {
     $("modCard").hidden = false;
     let b; try { b = await ensure(); } catch { $("modQueue").textContent = "Couldn't reach Firebase."; return; }
-    $("modUid").textContent = `This phone's user ID: ${b.uid}${b.isAdmin() ? " (admin)" : " (not an admin yet)"}`;
-    if (!b.isAdmin()) { $("modQueue").innerHTML = '<div class="note">Add this ID as a document in the "admins" collection to approve photos.</div>'; return; }
+    let me; try { me = b.whoami ? await b.whoami() : { uid: b.uid, admin: b.isAdmin() }; } catch { $("modQueue").textContent = "Couldn't sign in to Firebase."; return; }
+    $("modUid").textContent = `This phone's user ID: ${me.uid}${me.admin ? " (admin)" : " (not an admin yet)"}`;
+    if (!me.admin) { $("modQueue").innerHTML = '<div class="note">Add this ID as a document in the "admins" collection to approve photos.</div>'; return; }
     let list, reports;
     try { [list, reports] = await Promise.all([b.pending(), b.reports()]); } catch { $("modQueue").textContent = "Couldn't load the queue."; return; }
     const reported = new Set(reports.map(r => r.photo));
@@ -269,5 +286,5 @@ export function initCommunity(ctx) {
     };
   }
 
-  return { enabled: true, offerAfterRating, renderMine, renderQueue, renderTab };
+  return { enabled: true, offerAfterRating, renderMine, renderQueue, renderTab, warm };
 }

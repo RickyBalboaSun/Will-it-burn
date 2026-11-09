@@ -57,15 +57,15 @@ FAKE_BACKEND = """
   const now = Date.now(), t = Math.floor(now / 1000) - 3600;
   const svg = c => 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="15" fill="#4a2f5e"/><rect y="15" width="40" height="15" fill="' + c + '"/></svg>');
   const db = [
-    { id: "p1", uid: "u-other", status: "approved", path: "photos/u-other/p1", kind: "sunset", date: "2026-11-08", t, band: "On fire", bandLo: 90, predicted: 50, place: "Near Kayenta", lat: 36.73, lon: -110.25, createdAt: now - 1500000 },
-    { id: "p2", uid: "u-other", status: "approved", path: "photos/u-other/p2", kind: "sunset", date: "2026-11-08", t, band: "Good", bandLo: 50, predicted: 41, place: "Near Swansea", lat: 51.62, lon: -3.94, createdAt: now - 9000000 },
-    { id: "p3", uid: "u-other", status: "approved", path: "photos/u-other/p3", kind: "sunrise", date: "2026-11-08", t, band: "Great", bandLo: 75, predicted: 60, place: "Near Lisbon", lat: 38.72, lon: -9.14, createdAt: now - 7000000 },
+    { id: "p1", uid: "u-other", status: "approved", kind: "sunset", date: "2026-11-08", t, band: "On fire", bandLo: 90, predicted: 50, place: "Near Kayenta", lat: 36.73, lon: -110.25, createdAt: now - 1500000 },
+    { id: "p2", uid: "u-other", status: "approved", kind: "sunset", date: "2026-11-08", t, band: "Good", bandLo: 50, predicted: 41, place: "Near Swansea", lat: 51.62, lon: -3.94, createdAt: now - 9000000 },
+    { id: "p3", uid: "u-other", status: "approved", kind: "sunrise", date: "2026-11-08", t, band: "Great", bandLo: 75, predicted: 60, place: "Near Lisbon", lat: 38.72, lon: -9.14, createdAt: now - 7000000 },
   ];
   window.__FAKE_DB = db; window.__FAKE_REPORTS = [];
   window.__SUNSCORE_FAKE_BACKEND = async () => ({
-    uid: "u-me", isAdmin: () => true,
+    async whoami() { return { uid: "u-me", admin: true }; },
     async upload({ id, full, thumb, meta }) { window.__FAKE_UPLOAD = { fullSize: full.size, thumbSize: thumb.size, fullType: full.type };
-      db.push({ ...meta, id, uid: "u-me", status: "pending", path: "photos/u-me/" + id, createdAt: Date.now() }); },
+      db.push({ ...meta, id, uid: "u-me", status: "pending", createdAt: Date.now() }); },
     async feed() { return db.filter(p => p.status === "approved").sort((a, b) => b.createdAt - a.createdAt); },
     async mine() { return db.filter(p => p.uid === "u-me"); },
     async pending() { return db.filter(p => p.status === "pending"); },
@@ -524,13 +524,17 @@ def main():
           return [a.blob.size, t.blob.size, a.w, t.w]; }""")
         check(fit[0] <= 560000 and fit[1] <= 30000 and fit[3] <= 240, f"even a hard-to-compress photo fits the database size cap: {fit}")
         pg.click(".tabbar button[data-go='community']"); pg.wait_for_selector(".cpin", timeout=10000); pg.wait_for_timeout(400)
-        check(len(pg.query_selector_all(".cpin")) == 2 and len(pg.query_selector_all(".comm-card")) == 2, "map shows approved sunsets only (2)")
+        check(len(pg.query_selector_all(".cpin")) == 3 and len(pg.query_selector_all(".comm-card")) == 3, "map opens with sunsets and sunrises together (3 approved)")
+        pg.wait_for_timeout(300)
+        check(pg.eval_on_selector_all(".comm-card img", "els => els.every(i => i.src.startsWith('data:'))"), "every strip card shows its thumbnail")
         shot(pg, "24-community")
         pg.click("#commSunrise"); pg.wait_for_timeout(400)
         check(len(pg.query_selector_all(".comm-card")) == 1, "sunrise filter")
-        pg.click("#commSunset"); pg.click("#commFire"); pg.wait_for_timeout(400)
+        pg.click("#commSunset"); pg.wait_for_timeout(400)
+        check(len(pg.query_selector_all(".comm-card")) == 2, "sunset filter")
+        pg.click("#commFire"); pg.wait_for_timeout(400)
         check(len(pg.query_selector_all(".comm-card")) == 1, "on-fire filter")
-        pg.click("#commFire"); pg.wait_for_timeout(300)
+        pg.click("#commFire"); pg.click("#commAll"); pg.wait_for_timeout(300)
         pg.click(".comm-card[data-id='p1']"); pg.wait_for_selector("#photoView[open]")
         check("Near Kayenta" in pg.inner_text("#pvPlace") and "On fire" in pg.inner_text("#pvBand") and "50" in pg.inner_text("#pvForecast"), "photo view")
         shot(pg, "26-photo")
@@ -545,7 +549,7 @@ def main():
             pg.click("#modQueue button[data-act='approved']"); pg.wait_for_timeout(300)
             check(pg.evaluate("window.__FAKE_DB.find(p => p.uid === 'u-me').status") == "approved", "admin approves")
             pg.click(".tabbar button[data-go='community']"); pg.wait_for_timeout(600)
-            check(len(pg.query_selector_all(".cpin")) == 3, "approved photo appears on the map")
+            check(len(pg.query_selector_all(".cpin")) == 4, "approved photo appears on the map")
             pg.click(".tabbar button[data-go='more']"); pg.wait_for_selector(".mp-del", timeout=8000)
             pg.click(".mp-del"); pg.wait_for_timeout(400)
             check(pg.evaluate("window.__FAKE_DB.filter(p => p.uid === 'u-me').length") == 0, "delete your photo")

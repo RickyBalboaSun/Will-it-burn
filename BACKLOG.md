@@ -72,3 +72,5 @@ Suggested first batch: UI 1–6 and 9 plus the daily nudge, one upload.
 - Mockup: https://claude.ai/artifact/FvoVXBx66w8AUWRAZtmGon
 - Built in 4.7 (8 Nov, overnight): Community tab, add-photo flow, your photos, moderation queue; off until js/firebase-config.js is filled. Setup guide: https://claude.ai/artifact/DVL7D486fb2Qv2nRs8MXnf
 - Not in v1 (later): automatic image screening (needs Cloud Functions + Vision), hide-all switch, clustering when many pins, App Check against abuse.
+
+- Community speed later: once there are a few hundred photos, move thumbnails out of the photo records into their own collection so the map loads just the light records first (needs a rules re-paste). Consider defaulting the filter to "This week" while there are few photos.

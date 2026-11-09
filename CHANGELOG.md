@@ -7,6 +7,12 @@
 
 
 
+
+## 4.7.3
+- Community opens on **All** (sunsets and sunrises together); Sunsets / Sunrises narrow it. Strip cards say which.
+- Faster: the map and tiles start at once instead of after Firebase; the photo feed no longer waits for anonymous sign-in (approved photos are public); the map and Firebase code are fetched quietly 4 s after the app opens (skipped on data saver / 2G).
+- Fixed: strip thumbnails didn't show with the free-plan storage (looked for a file path that no longer exists).
+- Sign-in waits for the saved session first, so the phone's user ID (and admin status) stays the same.
 ## 4.7.2
 - Removed the "Copy entry" button from the rating card (the GitHub row only shows when a log repository is set).
 ## 4.7.1
