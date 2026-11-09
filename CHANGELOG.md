@@ -4,6 +4,7 @@
 
 ## 4.4 – 8 Nov 2026
 - Renamed to **Sunscore: Sunrise & Sunset** ("Will it burn?" stays as the tagline). New app icon and mark.
+- The main tab is now **Today** (it covers sunrises too), and rating has moved to the bottom of it.
 - GitHub logging is now off unless a repository is set in More, so testers never post to a private repo. "Copy for Claude" is the main way to send a rating, from the rating card or any Log entry.
 
 ## 4.3.2 – 7 Nov 2026

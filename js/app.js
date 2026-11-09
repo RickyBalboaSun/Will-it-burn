@@ -1208,7 +1208,7 @@ $("modelVersion").textContent = M.MODEL_VERSION;
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.3";
+const RELEASE = "4.4";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");
