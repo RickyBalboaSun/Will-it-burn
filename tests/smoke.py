@@ -519,6 +519,13 @@ def main():
           const a = await C.shrink(f, 1600, 0.82), t = await C.shrink(f, 320, 0.72);
           return [a.w, a.h, t.w, t.h, a.blob.type, C.roundLL(37.61234), C.roundLL(-112.16789)]; }""")
         check(big == [1600, 1200, 320, 240, "image/jpeg", 37.61, -112.17], f"large photos shrink to 1600 px and a 320 px thumbnail: {big}")
+        fit = pg.evaluate("""async () => { const C = await import('./js/community.js');
+          const c = document.createElement('canvas'); c.width = 4000; c.height = 3000; const g = c.getContext('2d'); const d = g.createImageData(4000, 3000);
+          for (let i = 0; i < d.data.length; i++) d.data[i] = (i % 4 === 3) ? 255 : Math.random() * 255; g.putImageData(d, 0, 0);
+          const blob = await new Promise(r => c.toBlob(r, 'image/png')); const f = new File([blob], 'n.png', { type: 'image/png' });
+          const a = await C.shrinkTo(f, 1280, 0.8, 560000), t = await C.shrinkTo(f, 240, 0.65, 30000);
+          return [a.blob.size, t.blob.size, a.w, t.w]; }""")
+        check(fit[0] <= 560000 and fit[1] <= 30000 and fit[3] <= 240, f"even a hard-to-compress photo fits the database size cap: {fit}")
         pg.click(".tabbar button[data-go='community']"); pg.wait_for_selector(".cpin", timeout=10000); pg.wait_for_timeout(400)
         check(len(pg.query_selector_all(".cpin")) == 2 and len(pg.query_selector_all(".comm-card")) == 2, "map shows approved sunsets only (2)")
         shot(pg, "24-community")

@@ -5,6 +5,11 @@
 
 
 
+
+## 4.7.1
+- Community photos work on Firebase's free plan (no card needed): no Cloud Storage. The thumbnail (240 px) lives in the photo record and the full picture (up to 1280 px, under 560 KB) in `images/{id}`, both as JPEG data URLs.
+- New Firestore rules cover `images`; `firebase/storage.rules` removed.
+- Feed capped at 300 photos to keep the map light.
 ## 4.7 (built 8 Nov 2026, switched off until Firebase is set up)
 - **Community tab**: approved sunset and sunrise photos on a map (thumbnail pins ringed in the rating colour), Sunsets/Sunrises, Latest / This week / On fire only, a strip of recent skies, photo view with forecast, directions and report.
 - **Add your photo** after rating (or "Add your sky"): photo shrunk on the phone to 1600 px JPEG + 320 px thumbnail (re-encoding strips all hidden details), location rounded to ~1 km, band, consent tick, 5 a day.

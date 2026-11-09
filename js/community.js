@@ -23,6 +23,15 @@ export async function shrink(file, maxSide, quality) {
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", quality));
   return { blob, w, h };
 }
+/** Shrink until the JPEG fits under maxBytes (photos live inside database records, which cap at 1 MB). */
+export async function shrinkTo(file, maxSide, quality, maxBytes) {
+  let r = await shrink(file, maxSide, quality);
+  for (const [side, q] of [[maxSide, quality - 0.15], [Math.round(maxSide * 0.8), quality - 0.2], [Math.round(maxSide * 0.6), 0.6]]) {
+    if (r.blob.size <= maxBytes) break;
+    r = await shrink(file, side, q);
+  }
+  return r;
+}
 /** About 1 km: two decimal places. */
 export const roundLL = v => Math.round(v * 100) / 100;
 
@@ -179,7 +188,7 @@ export function initCommunity(ctx) {
     if ((count[today] || 0) >= DAILY_LIMIT) return msg(`You can add up to ${DAILY_LIMIT} photos a day.`);
     $("compPost").disabled = true; msg("Preparing your photo…");
     try {
-      const [full, thumb] = await Promise.all([shrink(composerFile, 1600, 0.82), shrink(composerFile, 320, 0.72)]);
+      const [full, thumb] = await Promise.all([shrinkTo(composerFile, 1280, 0.8, 560000), shrinkTo(composerFile, 240, 0.65, 30000)]);
       const p = state.place, lat = roundLL(p.lat), lon = roundLL(p.lon);
       let place = p.label && /^near /i.test(p.label) ? p.label : null;
       if (!place) { try { const n = await ctx.reverseName(lat, lon); place = n ? `Near ${n}` : null; } catch { place = null; } }
