@@ -446,8 +446,14 @@ function recentEvent(d) {
 }
 
 let rateSel = null, rateEvent = null, photoMeta = "";
-const DEFAULT_LOG_REPO = "RickyBalboaSun/will-it-burn-data";
-const logRepo = () => store.get("wib-log-repo", DEFAULT_LOG_REPO);
+/* GitHub logging is off unless a repository is set in More (testers and other users never post to one by default). */
+const logRepo = () => store.get("wib-log-repo", "");
+const githubLogging = () => !!logRepo();
+function applyLogMode() {
+  const gh = githubLogging();
+  $("rateLog").hidden = !gh;
+  $("rateCopy").className = gh ? "btn small ghost" : "btn small linkbtn-solid";
+}
 
 /* position at the moment of rating, for the on-location check */
 function currentPosition() {
@@ -533,7 +539,7 @@ function logUrl(x) {
   const body = M.logIssueBody(x, clock(x.t, x.offset));
   return `https://github.com/${logRepo()}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
-function setLogLink(x) { $("rateLog").href = logUrl(x); $("rateLog").dataset.id = x.id; }
+function setLogLink(x) { applyLogMode(); if (githubLogging()) { $("rateLog").href = logUrl(x); $("rateLog").dataset.id = x.id; } }
 function markSent(id) {
   store.set("wib-log", logAll().map(x => x.id === id ? { ...x, sentAt: Date.now() } : x));
   renderLog();
@@ -578,12 +584,16 @@ function renderLog() {
       <div>${esc(x.place.name)}${x.onLocation ? '<span class="badge-ok">✓ on location</span>' : ""}<div class="lp">${x.kind === "sunset" ? "Sunset" : "Sunrise"} · ${esc(isoDay(x.t, x.offset))}${x.notes ? " · " + esc(x.notes.slice(0, 60)) : ""}</div></div>
       <div class="lr">You ${x.rating}/10<div class="lp">App ${x.predicted}</div></div>
       <div class="log-actions">
-        <a class="btn small ${x.sentAt ? "ghost" : "linkbtn-solid"} log-send" data-id="${esc(x.id)}" href="${esc(logUrl(x))}" target="_blank" rel="noopener">${x.sentAt ? "Logged ✓ · log again" : "Log on GitHub"}</a>
+        ${githubLogging()
+          ? `<a class="btn small ${x.sentAt ? "ghost" : "linkbtn-solid"} log-send" data-id="${esc(x.id)}" href="${esc(logUrl(x))}" target="_blank" rel="noopener">${x.sentAt ? "Logged ✓ · log again" : "Log on GitHub"}</a>`
+          : `<button class="btn small ghost log-copy" data-id="${esc(x.id)}">Copy for Claude</button>`}
         <button class="del" data-id="${esc(x.id)}">Delete</button>
       </div>
     </div>`).join("");
 }
 $("logList").addEventListener("click", ev => {
+  const cp = ev.target.closest(".log-copy");
+  if (cp) { const e = logAll().find(x => x.id === cp.dataset.id); if (e) copyText("Sunscore log entry\n" + entryText(e), $("logMsg")); return; }
   const send = ev.target.closest(".log-send");
   if (send) { const id = send.dataset.id; setTimeout(() => markSent(id), 0); return; }
   const b = ev.target.closest(".del"); if (!b) return;
@@ -1168,11 +1178,13 @@ $("gpsBtn").addEventListener("click", locate);
 $("placeBtn").addEventListener("click", () => openPicker());
 
 /* ---------- logging settings ---------- */
-$("logRepo").value = logRepo();
+$("logRepo").value = logRepo(); applyLogMode();
 $("logRepoSave").addEventListener("click", () => {
   const v = $("logRepo").value.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
-  if (!/^[\w.-]+\/[\w.-]+$/.test(v)) { $("logRepoMsg").textContent = "Use the form owner/repository."; return; }
-  store.set("wib-log-repo", v); $("logRepo").value = v; $("logRepoMsg").textContent = "Saved.";
+  if (v && !/^[\w.-]+\/[\w.-]+$/.test(v)) { $("logRepoMsg").textContent = "Use the form owner/repository, or leave it empty."; return; }
+  store.set("wib-log-repo", v); $("logRepo").value = v;
+  $("logRepoMsg").textContent = v ? "Saved. Log entries now have a GitHub button." : "GitHub logging is off.";
+  applyLogMode(); renderLog(); if (state.data) renderRate();
 });
 
 /* ---------- tabs ---------- */
