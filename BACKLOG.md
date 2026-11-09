@@ -65,3 +65,8 @@ How features are prioritised: **value to someone deciding whether to go and watc
 - Community tab (Robin's idea): anonymised photos pinned on a world map. Needs photo storage, moderation, EXIF stripping and rounded locations; pairs with friends check-in.
 
 Suggested first batch: UI 1–6 and 9 plus the daily nudge, one upload.
+
+### Community tab: decision and mockup (8 Nov 2026)
+- Storage: Firebase (Cloud Storage + Firestore + anonymous sign-in), shared with the friends check-in. Needs the Blaze plan (card), expected £0; £1 budget alert; per-person upload limits.
+- Flow: rate → "Add your photo to the map?" → consent → pending → automatic check + approval queue (Developer view) → on the map. Your photos page with delete / delete all / hide all.
+- Mockup: https://claude.ai/artifact/FvoVXBx66w8AUWRAZtmGon
