@@ -1,0 +1,22 @@
+rules_version = '2';
+// Sunscore Community: Storage rules. Paste into Firebase console > Storage > Rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function photoDoc(file) {
+      return firestore.get(/databases/(default)/documents/photos/$(file.split('_t')[0].split('\\.')[0]));
+    }
+    function isAdmin() {
+      return request.auth != null && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+    match /photos/{uid}/{file} {
+      // your own small JPEGs only (the app shrinks photos to about 300 KB)
+      allow create: if request.auth != null && request.auth.uid == uid
+                    && request.resource.size < 1.5 * 1024 * 1024
+                    && request.resource.contentType == "image/jpeg";
+      allow delete: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      // approved photos are public; pending ones only to their owner and the admin
+      allow read: if (request.auth != null && (request.auth.uid == uid || isAdmin()))
+                  || photoDoc(file).data.status == "approved";
+    }
+  }
+}

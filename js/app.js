@@ -1,6 +1,8 @@
 import * as M from "./model.js";
 import * as V from "./visuals.js";
 import { readExif } from "./exif.js";
+import { initCommunity } from "./community.js";
+let community = null; // set once the page is ready
 
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -484,6 +486,7 @@ function renderRate() {
   const d = state.data, e = state.past ? state.events[0] : recentEvent(d);
   rateEvent = e;
   $("rateCard").hidden = !e;
+  $("commOffer").hidden = true;
   if (!e) { renderRateBanner(); return; }
   const off = d.offset, word = d.kind;
   const id = entryId(d.kind, e.t, off, state.place);
@@ -545,6 +548,7 @@ async function saveRating(quick) {
   $("rateShare").hidden = false; $("rateSave").textContent = entry.notes ? "Update note" : "Save note";
   setLogLink(entry);
   renderLog(); renderRateBanner();
+  if (community && community.enabled && !state.past) community.offerAfterRating(entry);
   if (sharing()) {
     const ok = await shareRating(entry);
     $("rateMsg").innerHTML = ok ? `✓ Sent: <b>${bandText(entry.rating)}</b>${said}. Thank you!`
@@ -1384,7 +1388,9 @@ function showTab(name) {
   window.scrollTo(0, 0);
   if (name === "spots") renderMySpots();
   if (name === "log") { renderLog(); $("vpDiag").textContent = store.get("wib-vp-diag", "") ? "Last viewpoint lookup: " + store.get("wib-vp-diag", "") : ""; }
-  if (name === "more") renderAlerts();
+  if (name === "more") { renderAlerts(); if (community && community.enabled) community.renderMine(); }
+  if (name === "community" && community) community.renderTab();
+  if (name === "log" && community && community.enabled) community.renderQueue();
 }
 $("tabbar").addEventListener("click", e => { const b = e.target.closest("button[data-go]"); if (b) showTab(b.dataset.go); });
 /* ---------- install to home screen ---------- */
@@ -1424,6 +1430,17 @@ $("shareApp").addEventListener("click", async () => {
 });
 renderInstall();
 
+/* ---------- community ---------- */
+community = initCommunity({
+  $, esc, store, state, M, run, showTab, loadLeaflet, TILE_URL, TILE_ATTR, directionsUrl, reverseName, bandFor, BANDS,
+  currentEvent() {
+    const d = state.data; if (!d || state.past) return null;
+    const e = recentEvent(d); if (!e) return null;
+    const existing = logAll().find(x => x.id === entryId(d.kind, e.t, d.offset, state.place));
+    return { kind: d.kind, t: e.t, date: isoDay(e.t, d.offset), predicted: e.score, rating: existing ? existing.rating : null };
+  },
+});
+
 /* developer mode: tap the model version five times */
 let devTaps = 0, devTimer = null;
 function applyDev() { $("devCard").hidden = !isDev(); document.documentElement.classList.toggle("dev", isDev()); }
@@ -1448,7 +1465,7 @@ setTimeout(shareBacklog, 4000);
 $("scaleKey").textContent = M.SCALE_KEY;
 $("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.6";
+const RELEASE = "4.7";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

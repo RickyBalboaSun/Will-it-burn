@@ -1,0 +1,33 @@
+rules_version = '2';
+// Sunscore Community: Firestore rules. Paste into Firebase console > Firestore Database > Rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+
+    match /photos/{id} {
+      // anyone can see approved photos; owners and the admin can see their pending ones
+      allow read: if resource.data.status == "approved"
+                  || (signedIn() && (resource.data.uid == request.auth.uid || isAdmin()));
+      // a new photo: your own, pending, rounded location, a known band, and nothing unexpected
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.keys().hasOnly(["uid", "status", "path", "createdAt", "kind", "date", "t", "band", "bandLo",
+                                                 "predicted", "place", "lat", "lon", "w", "h", "model"])
+        && request.resource.data.kind in ["sunset", "sunrise"]
+        && request.resource.data.lat is number && request.resource.data.lon is number
+        && request.resource.data.path == "photos/" + request.auth.uid + "/" + id;
+      // only the admin approves or rejects
+      allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "reviewedAt"]);
+      allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+    match /reports/{id} {
+      allow create: if signedIn() && request.resource.data.by == request.auth.uid;
+      allow read, delete: if isAdmin();
+    }
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+    }
+  }
+}

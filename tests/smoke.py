@@ -51,6 +51,33 @@ def forecast_body(qs):
     return out if len(out) > 1 else out[0]
 
 
+
+FAKE_BACKEND = """
+(() => {
+  const now = Date.now(), t = Math.floor(now / 1000) - 3600;
+  const svg = c => 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="15" fill="#4a2f5e"/><rect y="15" width="40" height="15" fill="' + c + '"/></svg>');
+  const db = [
+    { id: "p1", uid: "u-other", status: "approved", path: "photos/u-other/p1", kind: "sunset", date: "2026-11-08", t, band: "On fire", bandLo: 90, predicted: 50, place: "Near Kayenta", lat: 36.73, lon: -110.25, createdAt: now - 1500000 },
+    { id: "p2", uid: "u-other", status: "approved", path: "photos/u-other/p2", kind: "sunset", date: "2026-11-08", t, band: "Good", bandLo: 50, predicted: 41, place: "Near Swansea", lat: 51.62, lon: -3.94, createdAt: now - 9000000 },
+    { id: "p3", uid: "u-other", status: "approved", path: "photos/u-other/p3", kind: "sunrise", date: "2026-11-08", t, band: "Great", bandLo: 75, predicted: 60, place: "Near Lisbon", lat: 38.72, lon: -9.14, createdAt: now - 7000000 },
+  ];
+  window.__FAKE_DB = db; window.__FAKE_REPORTS = [];
+  window.__SUNSCORE_FAKE_BACKEND = async () => ({
+    uid: "u-me", isAdmin: () => true,
+    async upload({ id, full, thumb, meta }) { window.__FAKE_UPLOAD = { fullSize: full.size, thumbSize: thumb.size, fullType: full.type };
+      db.push({ ...meta, id, uid: "u-me", status: "pending", path: "photos/u-me/" + id, createdAt: Date.now() }); },
+    async feed() { return db.filter(p => p.status === "approved").sort((a, b) => b.createdAt - a.createdAt); },
+    async mine() { return db.filter(p => p.uid === "u-me"); },
+    async pending() { return db.filter(p => p.status === "pending"); },
+    async reports() { return window.__FAKE_REPORTS; },
+    async setStatus(id, status) { db.find(p => p.id === id).status = status; },
+    async remove(p) { db.splice(db.indexOf(db.find(x => x.id === p.id)), 1); },
+    async report(id, reason) { window.__FAKE_REPORTS.push({ photo: id, reason }); },
+    async url(p) { return svg(p.band === "On fire" ? "#f0532c" : "#ffa552"); },
+  });
+})();
+"""
+
 AQ_CALLS = []
 NOMINATIM = [
     {"lat": "37.05", "lon": "-110.18", "name": "John Ford's Point", "type": "viewpoint", "category": "tourism"},
@@ -463,6 +490,61 @@ def main():
         open_dev(pg)
         pg.fill("#pastDate", "2099-01-01"); pg.click("#pastGo")
         check("earlier" in pg.inner_text("#pastStatus"), "future date rejected")
+        ctx.close()
+
+        print("Community (fake Firebase)")
+        ctx, pg = new_page()
+        pg.add_init_script(FAKE_BACKEND)
+        pg.clock.install(time=LOCAL_MIDNIGHT + 17 * 3600 + 45 * 60)
+        pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
+        check(not pg.is_hidden("#tabCommunityBtn"), "Community tab shown when Firebase is configured")
+        pg.click("#quick button[data-n='8']"); pg.wait_for_function("document.getElementById('rateMsg').textContent.includes('The app said')", timeout=8000)
+        check(not pg.is_hidden("#commOffer"), "offer to add a photo after rating")
+        pg.click("#commOfferBtn"); pg.wait_for_selector("#composer[open]")
+        check("on" in (pg.get_attribute("#compBands button[data-band='Great']", "class") or ""), "composer starts from your rating")
+        pg.click("#compPost"); check("Choose a photo" in pg.inner_text("#compMsg"), "needs a photo")
+        if os.path.exists(PHOTO):
+            pg.set_input_files("#compFile", PHOTO)
+            pg.click("#compPost"); check("Tick the box" in pg.inner_text("#compMsg"), "needs consent")
+            pg.check("#compConsent"); shot(pg, "25-composer")
+            pg.click("#compPost"); pg.wait_for_function("document.getElementById('compMsg').textContent.includes('Thanks')", timeout=15000)
+            up = pg.evaluate("window.__FAKE_UPLOAD"); mine = pg.evaluate("window.__FAKE_DB.find(p => p.uid === 'u-me')")
+            check(up and up["fullType"] == "image/jpeg" and up["thumbSize"] <= up["fullSize"], f"photo shrunk to JPEG with a thumbnail: {up}")
+            check(mine and mine["status"] == "pending" and mine["lat"] == round(mine["lat"], 2) and mine["band"] == "Great" and mine["place"],
+                  f"stored as pending, location rounded: {mine and {k: mine[k] for k in ('lat','lon','band','place','status')}}")
+            pg.wait_for_timeout(2700)
+        big = pg.evaluate("""async () => { const C = await import('./js/community.js');
+          const c = document.createElement('canvas'); c.width = 4000; c.height = 3000; c.getContext('2d').fillRect(0, 0, 10, 10);
+          const blob = await new Promise(r => c.toBlob(r, 'image/png')); const f = new File([blob], 'x.png', { type: 'image/png' });
+          const a = await C.shrink(f, 1600, 0.82), t = await C.shrink(f, 320, 0.72);
+          return [a.w, a.h, t.w, t.h, a.blob.type, C.roundLL(37.61234), C.roundLL(-112.16789)]; }""")
+        check(big == [1600, 1200, 320, 240, "image/jpeg", 37.61, -112.17], f"large photos shrink to 1600 px and a 320 px thumbnail: {big}")
+        pg.click(".tabbar button[data-go='community']"); pg.wait_for_selector(".cpin", timeout=10000); pg.wait_for_timeout(400)
+        check(len(pg.query_selector_all(".cpin")) == 2 and len(pg.query_selector_all(".comm-card")) == 2, "map shows approved sunsets only (2)")
+        shot(pg, "24-community")
+        pg.click("#commSunrise"); pg.wait_for_timeout(400)
+        check(len(pg.query_selector_all(".comm-card")) == 1, "sunrise filter")
+        pg.click("#commSunset"); pg.click("#commFire"); pg.wait_for_timeout(400)
+        check(len(pg.query_selector_all(".comm-card")) == 1, "on-fire filter")
+        pg.click("#commFire"); pg.wait_for_timeout(300)
+        pg.click(".comm-card[data-id='p1']"); pg.wait_for_selector("#photoView[open]")
+        check("Near Kayenta" in pg.inner_text("#pvPlace") and "On fire" in pg.inner_text("#pvBand") and "50" in pg.inner_text("#pvForecast"), "photo view")
+        shot(pg, "26-photo")
+        pg.click("#pvReport"); pg.wait_for_timeout(200)
+        check(pg.evaluate("window.__FAKE_REPORTS.length") == 1, "report sent")
+        pg.click("#pvForecastBtn"); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
+        check(pg.inner_text("#locName") == "Near Kayenta", "see the forecast at a shared photo's place")
+        if os.path.exists(PHOTO):
+            pg.click(".tabbar button[data-go='more']"); pg.wait_for_selector(".mp-row", timeout=8000)
+            check("Being checked" in pg.inner_text("#myPhotos"), "your photos: pending")
+            open_dev(pg); pg.wait_for_selector("#modQueue .mq-row", timeout=8000)
+            pg.click("#modQueue button[data-act='approved']"); pg.wait_for_timeout(300)
+            check(pg.evaluate("window.__FAKE_DB.find(p => p.uid === 'u-me').status") == "approved", "admin approves")
+            pg.click(".tabbar button[data-go='community']"); pg.wait_for_timeout(600)
+            check(len(pg.query_selector_all(".cpin")) == 3, "approved photo appears on the map")
+            pg.click(".tabbar button[data-go='more']"); pg.wait_for_selector(".mp-del", timeout=8000)
+            pg.click(".mp-del"); pg.wait_for_timeout(400)
+            check(pg.evaluate("window.__FAKE_DB.filter(p => p.uid === 'u-me').length") == 0, "delete your photo")
         ctx.close()
 
         print("Install and invite")

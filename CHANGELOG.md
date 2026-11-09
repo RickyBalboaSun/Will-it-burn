@@ -4,6 +4,13 @@
 
 
 
+
+## 4.7 (built 8 Nov 2026, switched off until Firebase is set up)
+- **Community tab**: approved sunset and sunrise photos on a map (thumbnail pins ringed in the rating colour), Sunsets/Sunrises, Latest / This week / On fire only, a strip of recent skies, photo view with forecast, directions and report.
+- **Add your photo** after rating (or "Add your sky"): photo shrunk on the phone to 1600 px JPEG + 320 px thumbnail (re-encoding strips all hidden details), location rounded to ~1 km, band, consent tick, 5 a day.
+- **Your photos** in More: status, delete, delete all. **Moderation queue** in the Developer view (admins only); reports listed.
+- Firebase (anonymous sign-in, Firestore, Storage) via js/community-backend.js; rules in firebase/. Off while js/firebase-config.js is null.
+
 ## 4.6 – 8 Nov 2026
 - **Viewpoints**: asks three OpenStreetMap servers at once (15 s limit) and falls back to OSM search (Nominatim) if none answers; the view check runs in parallel batches. Clearer messages when the map service is down. Last lookup shown in the Developer view.
 - **Rating**: confirms "✓ Sent" once the rating reaches the server; notes are sent too. Copy, GitHub and photo-check controls are developer-only; no mention of Claude or GitHub for users.
