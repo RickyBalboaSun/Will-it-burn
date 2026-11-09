@@ -118,6 +118,10 @@ def main():
         b = p.chromium.launch(executable_path=chrome if os.path.exists(chrome) else None, args=["--no-sandbox"])
         errors = []
         posted = []
+        overpass_data = {"elements": []}
+
+        def overpass_route(route):
+            route.fulfill(status=200, body=json.dumps(overpass_data), content_type="application/json")
 
         def form_post(route):
             if route.request.method == "POST":
@@ -143,6 +147,7 @@ def main():
                 content_type="text/css" if r.request.url.endswith(".css") else "application/javascript"))
             ctx.route("**/tile.openstreetmap.org/**", lambda r: r.fulfill(status=200, body=TILE, content_type="image/png"))
             ctx.route(lambda u: urlparse(u).path == "/", form_post)
+            ctx.route("**/api/interpreter", overpass_route)
             pg = ctx.new_page()
             pg.on("pageerror", lambda e: errors.append(str(e)))
             pg.on("console", lambda m: m.type == "error" and "Failed to load resource" not in m.text and errors.append(m.text))
@@ -229,7 +234,7 @@ def main():
         pg.click(".radius[data-r='50']"); pg.click("#scanBtn")
         pg.wait_for_selector(".near-item", timeout=10000); pg.wait_for_timeout(500)
         check(len(pg.query_selector_all(".near-item")) == 6, "nearby scan lists top 6 places")
-        check(pg.inner_text("#nearStatus") != "", "scan verdict: " + pg.inner_text("#nearStatus"))
+        check("No mapped viewpoints" in pg.inner_text("#nearStatus"), "no viewpoints: falls back to the area scan: " + pg.inner_text("#nearStatus"))
         check(len(pg.query_selector_all("#nearMap path.leaflet-interactive")) == 17, "17 places on the scan map")
         pg.eval_on_selector("#nearCard", "e => e.scrollIntoView()"); shot(pg, "06-nearby")
         pg.wait_for_function("document.querySelector('.near-item[data-place]')", timeout=5000)
@@ -256,6 +261,28 @@ def main():
         pg.click(".spot-row"); pg.wait_for_selector("#result:not([hidden])")
         if pg.is_hidden("#locMore"): pg.click("#locToggle")
         pg.click("#saveSpot"); check("Save this spot" in pg.inner_text("#saveSpot"), "spot removed")
+        pg.click("#placeBtn"); pg.wait_for_selector("#picker:not([hidden])"); pg.click("#gpsBtn"); pg.wait_for_selector("#result:not([hidden])")
+
+        print("Viewpoints from OpenStreetMap")
+        overpass_data["elements"] = [
+            {"type": "node", "lat": 37.6227, "lon": -112.1661, "tags": {"tourism": "viewpoint", "name": "Sunset Point"}},
+            {"type": "way", "center": {"lat": 37.6150, "lon": -112.1705}, "tags": {"tourism": "viewpoint", "name": "Inspiration Point"}},
+            {"type": "node", "lat": 37.5470, "lon": -112.2380, "tags": {"tourism": "viewpoint", "name": "Paria View"}},
+            {"type": "node", "lat": 37.70, "lon": -112.20, "tags": {"natural": "peak", "name": "Boat Mesa", "ele": "2650"}},
+        ]
+        pg.click(".tabbar button[data-go='spots']"); pg.click(".radius[data-r='25']"); pg.click("#scanBtn")
+        pg.wait_for_selector(".vp .near-item", timeout=20000); pg.wait_for_timeout(300)
+        names = [b.get_attribute("data-name") for b in pg.query_selector_all(".vp .near-item")]
+        check(sorted(names) == ["Boat Mesa", "Inspiration Point", "Paria View", "Sunset Point"], "real viewpoints listed: " + ", ".join(names))
+        check("Best bet:" in pg.inner_text("#nearStatus"), "headline names the best viewpoint: " + pg.inner_text("#nearStatus"))
+        check("Peak · 2650 m" in pg.inner_text("#nearList"), "kind and height shown")
+        href = pg.get_attribute(".vp-go", "href")
+        check(href.startswith("https://www.google.com/maps/dir/?api=1&destination="), "directions link")
+        check(any(w in pg.inner_text("#nearList") for w in ("open horizon", "hills")), "horizon check shown for each place")
+        pg.eval_on_selector("#nearCard", "e => e.scrollIntoView()"); shot(pg, "06b-viewpoints")
+        pg.click(".vp .near-item[data-name='Paria View']"); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)
+        check(pg.inner_text("#locName") == "Paria View" and not pg.is_hidden("#tab-tonight"), "tapping a viewpoint opens it by name")
+        overpass_data["elements"] = []
         pg.click("#placeBtn"); pg.wait_for_selector("#picker:not([hidden])"); pg.click("#gpsBtn"); pg.wait_for_selector("#result:not([hidden])")
 
         pg.click("#kindSunrise"); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(300)

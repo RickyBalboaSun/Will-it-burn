@@ -759,8 +759,66 @@ document.querySelectorAll(".radius").forEach(b => b.addEventListener("click", ()
   document.querySelectorAll(".radius").forEach(x => x.classList.toggle("on", x === b));
 }));
 $("scanBtn").addEventListener("click", async () => {
+  $("scanBtn").disabled = true; $("nearList").innerHTML = "";
+  try {
+    const found = await viewpointScan(nearRadius);
+    if (!found) await ringScan(nearRadius, true);
+  } catch {
+    $("nearStatus").textContent = "Couldn't search right now. Try again in a minute.";
+  } finally { $("scanBtn").disabled = false; }
+});
+
+/* real places from OpenStreetMap; returns false if there are too few to be useful */
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+async function overpass(query) {
+  for (const url of OVERPASS) {
+    const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data: query }), signal: ctrl.signal });
+      if (r.ok) return await r.json();
+    } catch { /* try the next server */ } finally { clearTimeout(timer); }
+  }
+  throw new Error("overpass unavailable");
+}
+const directionsUrl = x => `https://www.google.com/maps/dir/?api=1&destination=${x.lat.toFixed(5)},${x.lon.toFixed(5)}`;
+async function viewpointScan(R) {
   const p = state.place, e = state.events[state.sel], d = state.data;
-  const R = nearRadius, cands = [{ lat: p.lat, lon: p.lon, dist: 0, dir: "" }];
+  $("nearStatus").textContent = `Looking for viewpoints within ${R} km…`;
+  let places;
+  try { places = M.parseViewpoints(await overpass(M.overpassQuery(p.lat, p.lon, R)), p.lat, p.lon, 12); }
+  catch { places = []; }
+  if (places.length < 2) return false;
+  $("nearStatus").textContent = `Scoring ${places.length} places…`;
+  const here = { lat: p.lat, lon: p.lon, dist: 0, dir: "", name: "Where you are", kindLabel: "" };
+  const scored = (await scoreSpots([here, ...places], d.kind, e.t)).filter(x => x.score != null);
+  // the real horizon towards the sun for each place (cached; a few seconds the first time)
+  for (const x of scored) {
+    try { const h = await terrainFor(x.lat, x.lon, d.az); x.view = M.viewOpenness(h.angle); } catch { x.view = null; }
+  }
+  for (const x of scored) x.rank = x.score - (x.view ? x.view.penalty : 0);
+  const h = scored.find(x => x.dist === 0), spots = scored.filter(x => x.dist !== 0).sort((a, b) => b.rank - a.rank);
+  const best = spots[0];
+  const open = spots.filter(x => x.view && x.view.level === "open");
+  $("nearStatus").innerHTML = !best ? "" :
+    `<b>Best bet: ${esc(best.name)}</b>, ${best.dist} km ${best.dir}: scores ${best.score}${best.view ? `, ${best.view.text}` : ""}.` +
+    (h ? (Math.abs(best.score - h.score) <= 3 ? ` The sky is much the same where you are (${h.score}), so pick for the view.` : ` Where you are: ${h.score}.`) : "") +
+    (open.length ? "" : " None of these has a fully open view towards the sun.");
+  $("nearList").innerHTML = spots.slice(0, 8).map(x => `
+    <div class="vp">
+      <button class="near-item" data-lat="${x.lat}" data-lon="${x.lon}" data-name="${esc(x.name)}" data-vp="1">
+        <span>${esc(x.name)}<br><small>${x.kindLabel}${x.ele ? ` · ${Math.round(x.ele)} m` : ""} · ${x.dist} km ${x.dir}${x.view ? ` · ${x.view.text}` : ""}</small></span>
+        <span class="ns" style="color:${scoreColour(x.score)}">${x.score}</span>
+      </button>
+      <a class="vp-go" href="${directionsUrl(x)}" target="_blank" rel="noopener" aria-label="Directions to ${esc(x.name)}">Go ↗</a>
+    </div>`).join("") +
+    `<div class="note">Places from OpenStreetMap. Tap one to see its full forecast. Peaks and cliffs may need a walk, and access isn't checked.</div>`;
+  drawNearMap(h ? [h, ...spots.slice(0, 8)] : spots.slice(0, 8), p);
+  return true;
+}
+
+async function ringScan(R, fallback = false) {
+  const p = state.place, e = state.events[state.sel], d = state.data;
+  const cands = [{ lat: p.lat, lon: p.lon, dist: 0, dir: "" }];
   for (const [ring, n] of [[R / 2, 8], [R, 8]]) {
     for (let k = 0; k < n; k++) {
       const brg = k * 360 / n + (ring === R ? 22.5 : 0);
@@ -768,18 +826,18 @@ $("scanBtn").addEventListener("click", async () => {
       cands.push({ lat: la, lon: lo, dist: Math.round(ring), dir: M.compass(brg) });
     }
   }
-  $("scanBtn").disabled = true; $("nearStatus").textContent = `Scanning ${cands.length} places…`; $("nearList").innerHTML = "";
-  try {
+  $("nearStatus").textContent = `No mapped viewpoints found, so scanning ${cands.length} areas around you…`;
+  {
     const scored = (await scoreSpots(cands, d.kind, e.t)).filter(x => x.score != null);
     const here = scored.find(x => x.dist === 0);
     scored.sort((a, b) => b.score - a.score);
     const best = scored[0];
     const spread = best.score - Math.min(...scored.map(x => x.score));
-    $("nearStatus").innerHTML = !here ? ""
+    $("nearStatus").innerHTML = (fallback ? `No mapped viewpoints within ${R} km. Here's how the sky compares around you. ` : "") + (!here ? ""
       : best.dist !== 0 && best.score - here.score >= 8 ? `<b>${best.dist} km ${best.dir} looks better:</b> ${best.score} vs ${here.score} here.`
       : spread < 5 ? `<b>Much the same everywhere within ${R} km</b> (around ${here.score}), so there's no need to travel for this one.`
       : here.score >= 50 ? `<b>You're already in a good spot.</b> Nowhere within ${R} km scores clearly better than here (${here.score}).`
-      : `<b>Nowhere nearby is clearly better</b> than here (${here.score}).`;
+      : `<b>Nowhere nearby is clearly better</b> than here (${here.score}).`);
     $("nearList").innerHTML = scored.slice(0, 6).map(x => `
       <button class="near-item" data-lat="${x.lat}" data-lon="${x.lon}" data-name="${x.dist ? `${x.dist} km ${x.dir}` : "Here"}">
         <span>${x.dist ? `${x.dist} km ${x.dir}` : "Where you are"}<br><small>${x.verdict}${x.dist ? " · tap to check it" : ""}</small></span>
@@ -788,10 +846,8 @@ $("scanBtn").addEventListener("click", async () => {
     drawNearMap(scored, p);
     nameNearby(scored.slice(0, 6).filter(x => x.dist));
     flagTerrain(scored.slice(0, 6), d.az);
-  } catch {
-    $("nearStatus").textContent = "Couldn't scan right now. Try again in a minute.";
-  } finally { $("scanBtn").disabled = false; }
-});
+  }
+}
 async function flagTerrain(list, az) {
   for (const x of list) {
     try {
@@ -819,6 +875,10 @@ async function nameNearby(list) {
 }
 $("nearList").addEventListener("click", ev => {
   const b = ev.target.closest(".near-item"); if (!b || b.dataset.name === "Here") return;
+  if (b.dataset.vp) {
+    run({ name: b.dataset.name, label: b.dataset.name, detail: "", lat: Number(b.dataset.lat), lon: Number(b.dataset.lon) });
+    showTab("tonight"); return;
+  }
   const base = state.place.label || state.place.name;
   const label = b.dataset.place ? `Near ${b.dataset.place}` : `${b.dataset.name} of ${base}`;
   const detail = b.dataset.place ? `${b.dataset.name} of ${base.replace(/^Near /, "")}` : "";

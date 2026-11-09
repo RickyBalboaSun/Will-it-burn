@@ -403,3 +403,60 @@ export function terrainSummary(h, eventUnix, terrainUnix, kind = "sunset") {
   if (h.angle < 2) return { level: "low", text: `Slightly raised horizon (${h.angle.toFixed(1)}°, high ground ${dist} away).${when}${caveat}` };
   return { level: "high", text: `Hills or ridges block the low sun: the horizon is ${h.angle.toFixed(1)}° up, ${dist} away.${when} Clouds overhead can still light up, but you won't see the sun touch the horizon.${caveat}` };
 }
+
+/* ---------- real viewpoints (OpenStreetMap via Overpass) ---------- */
+export const VIEW_KINDS = {
+  viewpoint: { label: "Viewpoint", rank: 0 },
+  beach: { label: "Beach", rank: 1 },
+  cliff: { label: "Cliff top", rank: 2 },
+  peak: { label: "Peak", rank: 3 },
+};
+/** Overpass QL for named viewpoints, beaches, cliffs and peaks within radiusKm. */
+export function overpassQuery(lat, lon, radiusKm) {
+  const a = `(around:${Math.round(radiusKm * 1000)},${lat.toFixed(5)},${lon.toFixed(5)})`;
+  return `[out:json][timeout:25];(` +
+    `node["tourism"="viewpoint"]${a};way["tourism"="viewpoint"]${a};` +
+    `node["natural"="beach"]["name"]${a};way["natural"="beach"]["name"]${a};` +
+    `node["natural"="cliff"]["name"]${a};way["natural"="cliff"]["name"]${a};` +
+    `node["natural"="peak"]["name"]${a};` +
+    `);out center 300;`;
+}
+function bearing(lat1, lon1, lat2, lon2) {
+  const r = d => d * Math.PI / 180, p1 = r(lat1), p2 = r(lat2), dl = r(lon2 - lon1);
+  const y = Math.sin(dl) * Math.cos(p2), x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+/**
+ * Turn an Overpass response into a short list of places worth scoring.
+ * Named places first, viewpoints before beaches, cliffs and peaks, nearest first within each; duplicates by name dropped.
+ */
+export function parseViewpoints(json, lat, lon, max = 12) {
+  const seen = new Set(), out = [];
+  for (const el of (json && json.elements) || []) {
+    const t = el.tags || {};
+    const kind = t.tourism === "viewpoint" ? "viewpoint" : t.natural === "beach" ? "beach" : t.natural === "cliff" ? "cliff" : t.natural === "peak" ? "peak" : null;
+    const la = el.lat ?? (el.center && el.center.lat), lo = el.lon ?? (el.center && el.center.lon);
+    if (!kind || la == null || lo == null) continue;
+    const name = (t["name:en"] || t.name || "").trim();
+    const dist = distanceKm(lat, lon, la, lo);
+    if (dist < 0.3) continue; // that's where you already are
+    const key = name ? name.toLowerCase() : `${la.toFixed(3)},${lo.toFixed(3)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const ele = Number.parseFloat(t.ele);
+    out.push({
+      name: name || VIEW_KINDS[kind].label, named: !!name, kind, kindLabel: VIEW_KINDS[kind].label,
+      lat: la, lon: lo, dist: Math.round(dist * 10) / 10, dir: compass(bearing(lat, lon, la, lo)),
+      ele: Number.isFinite(ele) ? ele : null,
+    });
+  }
+  out.sort((a, b) => (b.named - a.named) || (VIEW_KINDS[a.kind].rank - VIEW_KINDS[b.kind].rank) || (a.dist - b.dist));
+  return out.slice(0, max);
+}
+/** How open the view towards the sun is, from the horizon angle in degrees. */
+export function viewOpenness(angle) {
+  if (angle == null) return null;
+  if (angle < 1) return { level: "open", text: "open horizon", penalty: 0 };
+  if (angle < 3) return { level: "partly", text: `hills ${angle.toFixed(0)}° up towards the sun`, penalty: 5 };
+  return { level: "blocked", text: `hills ${angle.toFixed(0)}° up: the sun sets early here`, penalty: 15 };
+}

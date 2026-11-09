@@ -286,3 +286,9 @@ html.host-badge .tabbar { padding-bottom: calc(52px + env(safe-area-inset-bottom
   background: #ffa552; color: #2a1838; font-weight: 600; font-size: 14px; }
 .rate-share-note { font-size: 12px; opacity: 0.7; margin-top: 4px; line-height: 1.4; }
 #modelVersion { cursor: default; -webkit-user-select: none; user-select: none; padding: 4px 2px; }
+
+/* viewpoints */
+.vp { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: stretch; }
+.vp .near-item { margin: 0; }
+.vp-go { display: flex; align-items: center; justify-content: center; min-width: 52px; padding: 0 10px; border-radius: 12px; background: rgba(255,255,255,0.1); font-size: 13px; font-weight: 600; text-decoration: none; }
+.near-list .vp + .vp { margin-top: 6px; }

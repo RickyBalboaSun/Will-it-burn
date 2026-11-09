@@ -176,3 +176,29 @@ test("a cliff-edge viewpoint doesn't create a false ridge", () => {
   const ridge = M.TERRAIN_KM.map(km => km === 2 ? 2700 : 2500);
   assert.ok(M.horizonAngle(ridge).angle > 5);
 });
+
+test("viewpoints: query and parsing", () => {
+  const q = M.overpassQuery(37.61, -112.16, 25);
+  assert.ok(q.includes('"tourism"="viewpoint"') && q.includes("around:25000,37.61000,-112.16000"));
+  const json = { elements: [
+    { type: "node", lat: 37.6227, lon: -112.1661, tags: { tourism: "viewpoint", name: "Sunset Point" } },
+    { type: "way", center: { lat: 37.6150, lon: -112.1705 }, tags: { tourism: "viewpoint", name: "Inspiration Point" } },
+    { type: "node", lat: 37.6151, lon: -112.1704, tags: { tourism: "viewpoint", name: "Inspiration Point" } }, // duplicate
+    { type: "node", lat: 37.70, lon: -112.20, tags: { natural: "peak", name: "Boat Mesa", ele: "2650" } },
+    { type: "node", lat: 37.64, lon: -112.15, tags: { tourism: "viewpoint" } }, // unnamed
+    { type: "node", lat: 37.6100, lon: -112.1600, tags: { tourism: "viewpoint", name: "Right here" } }, // < 300 m
+    { type: "node", lat: 37.5, lon: -112.0, tags: { amenity: "cafe", name: "Cafe" } },
+  ] };
+  const v = M.parseViewpoints(json, 37.61, -112.16);
+  assert.deepEqual(v.map(x => x.name), ["Inspiration Point", "Sunset Point", "Boat Mesa", "Viewpoint"]);
+  assert.equal(v[2].ele, 2650);
+  assert.equal(v[2].kindLabel, "Peak");
+  assert.ok(v[0].dist > 0 && typeof v[0].dir === "string");
+});
+
+test("viewpoints: openness from horizon angle", () => {
+  assert.equal(M.viewOpenness(0.2).level, "open");
+  assert.equal(M.viewOpenness(2).level, "partly");
+  assert.equal(M.viewOpenness(6).level, "blocked");
+  assert.equal(M.viewOpenness(null), null);
+});

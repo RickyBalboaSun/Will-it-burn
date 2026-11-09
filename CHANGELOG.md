@@ -8,6 +8,7 @@
 - **One-tap rating:** Dull, Some colour, Good, Great or On fire. Exact score, note and photo are optional under "Add detail".
 - **Ratings shared anonymously** to Netlify Forms (rating, forecast inputs, time, area rounded to ~1 km). Off switch in More. Unsent ratings retry on the next visit.
 - **Nudges:** a "Rate it" banner at the top of Today after the event; "Add to calendar" also adds a short "Rate the sunset" reminder afterwards.
+- **Viewpoints near you** (Spots): named viewpoints, beaches, cliffs and peaks from OpenStreetMap (Overpass), scored for the same event, ranked with a terrain check of the view towards the sun, with directions. Falls back to the old area scan where nothing is mapped.
 - **Log tab removed** from the bar. Ratings, past-date checks and logging settings are in a hidden Developer view: tap the model version in the footer five times.
 
 ## 4.4 – 8 Nov 2026
