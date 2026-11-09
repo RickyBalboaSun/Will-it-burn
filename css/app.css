@@ -296,3 +296,11 @@ html.host-badge .tabbar { padding-bottom: calc(52px + env(safe-area-inset-bottom
 .quick button b { font-weight: 600; }
 .quick button small { font-size: 11px; font-weight: 500; opacity: 0.7; margin-top: -4px; font-variant-numeric: tabular-nums; }
 .quick button { min-height: 88px; }
+
+/* install */
+.install-bar { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px; margin: 0 0 14px;
+  padding: 10px 8px 10px 12px; border-radius: 14px; background: rgba(0,0,0,0.28); text-align: left; text-shadow: none; }
+.install-bar img { border-radius: 10px; }
+.install-text { font-size: 13px; line-height: 1.35; }
+.install-bar .btn { min-height: 36px; padding: 0 14px; }
+.install-x { background: none; border: 0; font-size: 22px; line-height: 1; opacity: 0.6; padding: 4px 6px; }

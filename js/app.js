@@ -427,12 +427,6 @@ for (const [id, kind] of [["kindSunset", "sunset"], ["kindSunrise", "sunrise"]])
 
 
 /* ---------- rating and log ---------- */
-const RUBRIC = n => n == null ? "Rate the colour in the sky, not the photo."
-  : `${bandText(n)}: ` + (n <= 2 ? "grey, or no visible colour"
-  : n <= 4 ? "a coloured band on the horizon, a little in the clouds"
-  : n <= 7 ? "clouds lit up, colour across part of the sky"
-  : n <= 8 ? "strong colour across much of the sky"
-  : "exceptional: the whole sky lit up");
 const logAll = () => store.get("wib-log", []);
 const isoDay = (unix, off) => { const d = localDate(unix, off); return d.toISOString().slice(0, 10); };
 const entryId = (kind, t, off, place) => `${kind}-${isoDay(t, off)}-${place.lat.toFixed(3)},${place.lon.toFixed(3)}`;
@@ -497,7 +491,7 @@ function renderRate() {
   $("rateShare").hidden = !existing;
   if (existing) setLogLink(existing);
   photoMeta = existing ? existing.photoMeta || "" : ""; $("photoMeta").textContent = ""; $("ratePhoto").value = "";
-  $("rateSave").textContent = existing ? "Update rating" : "Save rating";
+  $("rateSave").textContent = existing && existing.notes ? "Update note" : "Save note";
   $("rateMsg").textContent = existing ? `Saved: ${bandText(existing.rating)}. The app said ${existing.predicted}. Tap another to change it.` : "";
   $("rateMore").open = false;
   $("rateShareNote").hidden = !sharing() || !!existing;
@@ -513,9 +507,6 @@ const bandFor = score100 => BANDS.find(b => score100 <= b.hi) || BANDS[BANDS.len
 const QUICK_NAME = n => bandFor(n * 10).name;
 const bandText = n => { const b = bandFor(n * 10); return `${b.name} (${b.lo}–${b.hi})`; };
 function drawScale() {
-  $("scale").innerHTML = Array.from({ length: 11 }, (_, n) =>
-    `<button role="radio" aria-checked="${rateSel === n}" class="${rateSel === n ? "on" : ""}" data-n="${n}">${n}</button>`).join("");
-  $("rubric").textContent = RUBRIC(rateSel);
   document.querySelectorAll("#quick button").forEach(b => {
     const on = rateSel != null && QUICK_NAME(rateSel) === b.dataset.band;
     b.classList.toggle("on", on); b.setAttribute("aria-checked", on);
@@ -524,10 +515,6 @@ function drawScale() {
 $("quick").addEventListener("click", ev => {
   const b = ev.target.closest("button"); if (!b) return;
   rateSel = Number(b.dataset.n); drawScale(); saveRating(true);
-});
-$("scale").addEventListener("click", ev => {
-  const b = ev.target.closest("button"); if (!b) return;
-  rateSel = Number(b.dataset.n); drawScale();
 });
 $("rateSave").addEventListener("click", () => saveRating(false));
 async function saveRating(quick) {
@@ -547,8 +534,8 @@ async function saveRating(quick) {
   const log = logAll().filter(x => x.id !== entry.id);
   log.push(entry); log.sort((a, b) => b.t - a.t);
   store.set("wib-log", log);
-  $("rateMsg").innerHTML = `Thanks. Saved: <b>${bandText(entry.rating)}</b>${quick ? "" : `, ${entry.rating}/10`}. The app said ${entry.predicted}${entry.onLocation ? ' <span class="badge-ok">✓ on location</span>' : ""}`;
-  $("rateShare").hidden = false; $("rateSave").textContent = "Update rating";
+  $("rateMsg").innerHTML = `Thanks. Saved: <b>${bandText(entry.rating)}</b>${quick ? "" : " with your note"}. The app said ${entry.predicted}${entry.onLocation ? ' <span class="badge-ok">✓ on location</span>' : ""}`;
+  $("rateShare").hidden = false; $("rateSave").textContent = entry.notes ? "Update note" : "Save note";
   setLogLink(entry);
   renderLog(); renderRateBanner();
   shareRating(entry);
@@ -601,7 +588,7 @@ $("rateBanner").addEventListener("click", () => $("rateCard").scrollIntoView({ b
 
 function logUrl(x) {
   const word = x.kind === "sunset" ? "Sunset" : "Sunrise";
-  const title = `${word} ${x.date} – ${x.place.name} – ${x.rating}/10`;
+  const title = `${word} ${x.date} – ${x.place.name} – ${QUICK_NAME(x.rating)}`;
   const body = M.logIssueBody(x, clock(x.t, x.offset));
   return `https://github.com/${logRepo()}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
@@ -619,7 +606,7 @@ function entryText(x) {
     `Place: ${x.place.name}${x.place.detail ? ", " + x.place.detail : ""} (${x.place.lat}, ${x.place.lon})`,
     `Facing: ${M.compass(x.facing)} (${x.facing}°)`,
     `App score: ${x.predicted}/100 (model ${x.model})`,
-    `My rating: ${x.rating}/10`,
+    `My rating: ${bandText(x.rating)}`,
   ];
   if (x.notes) lines.push(`Notes: ${x.notes}`);
   if (x.verification) lines.push(`Check: ${x.verification}${x.photoMeta ? "; " + x.photoMeta : ""}`);
@@ -648,7 +635,7 @@ function renderLog() {
   $("logList").innerHTML = log.map(x => `
     <div class="log-item">
       <div>${esc(x.place.name)}${x.onLocation ? '<span class="badge-ok">✓ on location</span>' : ""}<div class="lp">${x.kind === "sunset" ? "Sunset" : "Sunrise"} · ${esc(isoDay(x.t, x.offset))}${x.notes ? " · " + esc(x.notes.slice(0, 60)) : ""}</div></div>
-      <div class="lr">You ${x.rating}/10<div class="lp">App ${x.predicted}</div></div>
+      <div class="lr">${QUICK_NAME(x.rating)}<div class="lp">App ${x.predicted}</div></div>
       <div class="log-actions">
         ${githubLogging()
           ? `<a class="btn small ${x.sentAt ? "ghost" : "linkbtn-solid"} log-send" data-id="${esc(x.id)}" href="${esc(logUrl(x))}" target="_blank" rel="noopener">${x.sentAt ? "Logged ✓ · log again" : "Log on GitHub"}</a>`
@@ -1330,6 +1317,43 @@ function showTab(name) {
   if (name === "more") renderAlerts();
 }
 $("tabbar").addEventListener("click", e => { const b = e.target.closest("button[data-go]"); if (b) showTab(b.dataset.go); });
+/* ---------- install to home screen ---------- */
+let installPrompt = null;
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const invited = new URLSearchParams(location.search).has("install");
+function renderInstall() {
+  const can = !standalone() && (installPrompt || isIOS());
+  const dismissed = !invited && store.get("wib-install-x", 0) > Date.now() - 14 * 86400000;
+  $("installBar").hidden = !can || dismissed;
+  $("installBtn2").hidden = !installPrompt || standalone();
+  if (isIOS() && !installPrompt) {
+    $("installText").innerHTML = "<b>Add Sunscore to your home screen</b><br>Tap Share <span aria-hidden=\"true\">⬆︎</span>, then <b>Add to Home Screen</b>.";
+    $("installBtn").hidden = true;
+  }
+}
+async function doInstall() {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  try { await installPrompt.userChoice; } catch { /* ignore */ }
+  installPrompt = null; renderInstall();
+}
+window.addEventListener("beforeinstallprompt", ev => { ev.preventDefault(); installPrompt = ev; renderInstall(); });
+window.addEventListener("appinstalled", () => { installPrompt = null; store.set("wib-installed", true); renderInstall(); });
+$("installBtn").addEventListener("click", doInstall);
+$("installBtn2").addEventListener("click", doInstall);
+$("installX").addEventListener("click", () => { store.set("wib-install-x", Date.now()); $("installBar").hidden = true; });
+$("shareApp").addEventListener("click", async () => {
+  const url = location.origin + location.pathname.replace(/index\.html$/, "") + "?install=1";
+  const text = "Sunscore tells you how good tonight's sunset (or tomorrow's sunrise) will be, 0–100. Open this and add it to your home screen:";
+  try {
+    if (navigator.share) { await navigator.share({ title: "Sunscore", text, url }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  await copyText(url, $("shareAppMsg"));
+  if ($("shareAppMsg").textContent.startsWith("Copied")) $("shareAppMsg").textContent = "Link copied: " + url;
+});
+renderInstall();
+
 /* developer mode: tap the model version five times */
 let devTaps = 0, devTimer = null;
 function applyDev() { $("devCard").hidden = !isDev(); }
