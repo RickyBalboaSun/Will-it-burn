@@ -31,8 +31,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.keys().hasOnly(["uid", "data"])
-        && request.resource.data.data is string && request.resource.data.data.size() < 900000
-        && request.resource.data.data.matches("data:image/jpeg;base64,.*");
+        && request.resource.data.data is string && request.resource.data.data.size() < 900000;
       allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
     match /reports/{id} {
