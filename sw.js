@@ -2,7 +2,7 @@
 // Browsers that can't run module service workers get sw-classic.js (offline only).
 import * as M from "./js/model.js";
 
-const CACHE = "wib-shell-v14";
+const CACHE = "wib-shell-v15";
 const CONFIG_CACHE = "wib-config";
 const CONFIG_URL = "./__alert-config";
 const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/model.js", "js/visuals.js", "js/exif.js", "manifest.webmanifest",
@@ -57,7 +57,9 @@ async function checkAlert({ force = false } = {}) {
   const off = data[0].utc_offset_seconds || 0;
   const t = M.eventTimes(data[0].daily, kind).find(x => x != null && x > now);
   if (t == null) return { status: "no-event" };
-  const e = M.scoreModels(data, t);
+  let aq = null;
+  if (!cfg.testApi) { try { const r = await fetch(M.airQualityUrl(place.lat, place.lon)); if (r.ok) aq = await r.json(); } catch { /* haze optional */ } }
+  const e = M.scoreModels(data, t, aq);
   if (!e) return { status: "no-data" };
   const id = `${kind}-${t}`;
   cfg.lastCheck = { at: Date.now(), score: e.score, t };

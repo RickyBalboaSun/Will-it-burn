@@ -4,6 +4,7 @@
 
 
 ## 4.5 – 8 Nov 2026
+- **Model 1.4.0: air clarity.** A clear sky's starting score now ranges from 30 (hazy, humid lowland) to 60 (clean, dry, high air, like Bryce), from aerosol optical depth (CAMS via Open-Meteo's air-quality API), humidity and altitude. Unknown haze counts as average. Used in the forecast, spots, viewpoints, past dates and alerts; recorded with every shared rating. No interface change.
 - **Model 1.3.0 (provisional):** a clean clear sky now starts at 50, not 25, and keeps the "Clear: simple glow" verdict up to 74. Three of three clear-ish skies were rated far above the forecast. To be rechecked at about 15 ratings.
 - **One-tap rating:** Dull (0–24), Some colour (25–49), Good (50–74), Great (75–89) or On fire (90–100), the same windows as the app's score, so a rating reads straight against the forecast. Exact score, note and photo are optional under "Add detail".
 - **Ratings shared anonymously** to Netlify Forms (rating, forecast inputs, time, area rounded to ~1 km). Off switch in More. Unsent ratings retry on the next visit.

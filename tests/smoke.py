@@ -51,12 +51,21 @@ def forecast_body(qs):
     return out if len(out) > 1 else out[0]
 
 
+AQ_CALLS = []
+
+
 def handle(route):
     u = urlparse(route.request.url); qs = parse_qs(u.query)
     if "/v1/elevation" in u.path:
         lats = qs["latitude"][0].split(",")
         # a 200 m ridge 2 km towards the sun from the Bryce test spot
         body = {"elevation": [2400 + (200 if i == 7 else 0) for i in range(len(lats))]}
+        route.fulfill(status=200, content_type="application/json", headers={"Access-Control-Allow-Origin": "*"}, body=json.dumps(body)); return
+    if "air-quality-api" in u.netloc:
+        # clean desert air: aerosol optical depth 0.04 all week
+        t0 = int(NOW) - 2 * 86400
+        AQ_CALLS.append(u.query)
+        body = {"hourly": {"time": [t0 + h * 3600 for h in range(24 * 9)], "aerosol_optical_depth": [0.04] * (24 * 9)}}
         route.fulfill(status=200, content_type="application/json", headers={"Access-Control-Allow-Origin": "*"}, body=json.dumps(body)); return
     if "bigdatacloud" in u.netloc:
         body = {"locality": "Bryce Canyon City", "city": "Bryce Canyon City", "principalSubdivision": "Utah [US-UT]", "countryName": "United States of America (the)", "countryCode": "US"}
@@ -356,6 +365,7 @@ def main():
         ctx, pg = new_page()
         pg.clock.install(time=LOCAL_MIDNIGHT + 17 * 3600 + 45 * 60)
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
+        check(len(AQ_CALLS) > 0 and "aerosol_optical_depth" in AQ_CALLS[0], "haze forecast requested with the weather")
         check(not pg.is_hidden("#rateCard"), "rating card shown after sunset")
         check(not pg.is_hidden("#rateBanner") and "Rate it" in pg.inner_text("#rateBanner"), "rate banner at the top after sunset")
         check("tonight" in pg.inner_text("#rateTitle").lower(), "asks about tonight")
@@ -368,6 +378,7 @@ def main():
         sent = [json.loads(x["entry"][0]) for x in posted if x.get("form-name") == ["rating"]]
         check(len(sent) >= 1 and sent[-1]["rating"] == 8 and sent[-1]["band"] == "75-89" and sent[-1]["lat"] == round(sent[-1]["lat"], 2) and "place" not in sent[-1],
               "rating shared anonymously: " + (json.dumps(sent[-1])[:120] if sent else "nothing posted"))
+        check(sent and sent[-1]["inputs"].get("aod") == 0.04 and sent[-1]["inputs"].get("elevation") is not None, "haze and altitude go into the score and the shared rating: " + (json.dumps(sent[-1]["inputs"]) if sent else ""))
         check(pg.is_hidden("#rateBanner"), "banner gone once rated")
         check(pg.query_selector("#scale") is None, "no 0-10 scale")
         pg.fill("#rateNotes", "Pink underlit altocumulus, peaked 10 min after sunset")

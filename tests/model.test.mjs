@@ -13,11 +13,11 @@ test("model version matches the Python model", () => {
 test("scores match the Python model on 400 random cases", () => {
   for (const c of fx.cases) {
     const S = Object.fromEntries(Object.entries(c.S).map(([k, v]) => [Number(k), v]));
-    const r = M.scoreSamples(S);
+    const r = M.scoreSamples(S, c.air || {});
     // Python rounds exact halves to even; allow that one-point difference only at .5
     const half = Math.abs((r.raw % 1) - 0.5) < 1e-9;
     assert.ok(r.score === c.score || (half && Math.abs(r.score - c.score) === 1), `${r.score} vs ${c.score}`);
-    const map = { canvas: "canvas", path: "light_path", local: "local_low_cloud", overcast: "overcast", rain: "rain", clarity: "clarity" };
+    const map = { canvas: "canvas", path: "light_path", local: "local_low_cloud", overcast: "overcast", rain: "rain", clarity: "clarity", air: "air" };
     if (!half) assert.equal(r.verdict, c.verdict, "verdict matches Python");
     for (const [js, py] of Object.entries(map)) assert.ok(Math.abs(r.factors[js] - c.factors[py]) <= 0.005 + 1e-12, `${js} ${r.factors[js]} vs ${c.factors[py]}`); // Python reports factors to 2 dp
   }

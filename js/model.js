@@ -3,9 +3,20 @@
 // The scoring must stay identical to model/logic.py in the private data repo;
 // tests/parity.test.mjs checks this against fixtures generated from the Python.
 
-export const MODEL_VERSION = "1.3.0";
-/** 1.3.0 (provisional): clear-sky start raised 0.25 -> 0.50 after clear skies were consistently under-rated (H2). */
-export const CLEAR_SKY_BASE = 0.5;
+export const MODEL_VERSION = "1.4.0";
+/**
+ * 1.4.0: the clear-sky start depends on air clarity. Clean, dry air (and standing above the hazy
+ * boundary layer) gives purer twilight colour; haze and humidity wash a clear sunset out to pastels.
+ * Clean, dry, high (Bryce in November) ~0.55-0.6 · average ~0.45 · humid, hazy lowland ~0.3.
+ */
+export const CLEAR_SKY_MIN = 0.30, CLEAR_SKY_MAX = 0.60;
+/** 0 (hazy, humid, low) .. 1 (clean, dry, high). aod: aerosol optical depth (null = unknown), hum: %, elev: m. */
+export function airClarity(aod, hum, elev) {
+  const aodF = aod == null ? 0.5 : rampDown(aod, 0.05, 0.4);
+  const humF = hum == null ? 0.5 : rampDown(hum, 40, 90);
+  const altF = elev == null ? 0 : rampUp(elev, 200, 2000);
+  return 0.5 * aodF + 0.3 * humF + 0.2 * altF;
+}
 
 // Three independent weather models; the headline score is their median (scoreModels).
 export const WEATHER_MODELS = ["ecmwf_ifs025", "gfs_seamless", "icon_seamless"];
@@ -48,12 +59,13 @@ export const SCALE_KEY = "Under 25 poor · 25+ some colour · 50+ good · 75+ fi
  * Score one event. S maps distance_km -> { variable: value at the event time }.
  * Mirrors score_conditions() in logic.py.
  */
-export function scoreSamples(S) {
+export function scoreSamples(S, air = {}) {
   const obs = S[0];
   const cMid = mean(CANVAS_KM.map(d => S[d].cloud_cover_mid));
   const cHigh = mean(CANVAS_KM.map(d => S[d].cloud_cover_high));
   const canvas = Math.min(1, 0.65 * band(cMid, 5, 30, 70, 90) + 0.45 * band(cHigh, 10, 25, 80, 95));
-  const base = lerp(CLEAR_SKY_BASE, 1, canvas);
+  const airC = airClarity(air.aod ?? null, obs.relative_humidity_2m, air.elevation ?? null);
+  const base = lerp(lerp(CLEAR_SKY_MIN, CLEAR_SKY_MAX, airC), 1, canvas);
 
   const blocks = PATH_KM.map(d => Math.min(100, (S[d].cloud_cover_low || 0) + 0.5 * (S[d].cloud_cover_mid || 0)));
   const path = rampDown(mean(blocks), 15, 75);
@@ -76,13 +88,13 @@ export function scoreSamples(S) {
     score,
     raw,
     verdict: verdictFor(score, { canvas, path, local, overcast }),
-    factors: { canvas, path, local, overcast, rain, clarity },
+    factors: { canvas, path, local, overcast, rain, clarity, air: airC },
     inputs: {
       cMid, cHigh,
       pathLow: mean(PATH_KM.map(d => S[d].cloud_cover_low)),
       pathMid: mean(PATH_KM.map(d => S[d].cloud_cover_mid)),
       low: obs.cloud_cover_low, total: obs.cloud_cover,
-      rainP: pp, visKm, hum: obs.relative_humidity_2m,
+      rainP: pp, visKm, hum: obs.relative_humidity_2m, aod: air.aod ?? null, elevation: air.elevation ?? null,
     },
   };
 }
@@ -234,16 +246,29 @@ export function eventTimes(daily, kind) {
  * plus `model` (whose breakdown is shown) and `modelScores`. Mirrors score_models() in logic.py.
  * Lower median when only two models have data; null if none do.
  */
-export function scoreModels(locations, t) {
+export function scoreModels(locations, t, aq = null) {
   const res = [];
+  const air = { aod: aq ? aodAt(aq, t) : null, elevation: locations[0] && locations[0].elevation != null ? locations[0].elevation : null };
   for (const m of WEATHER_MODELS) {
     const S = samplesAt(locations, t, "_" + m);
-    if (hasData(S)) res.push({ model: m, r: scoreSamples(S) });
+    if (hasData(S)) res.push({ model: m, r: scoreSamples(S, air) });
   }
   if (!res.length) return null;
   res.sort((a, b) => a.r.score - b.r.score);
   const mid = res[Math.floor((res.length - 1) / 2)];
   return { ...mid.r, t, model: mid.model, modelScores: res.map(x => ({ model: x.model, score: x.r.score })) };
+}
+
+/** Aerosol optical depth at unix time t from an Open-Meteo air-quality response (hourly, unixtime). Null outside its range. */
+export function aodAt(aq, t) {
+  const h = aq && aq.hourly;
+  if (!h || !h.time || !h.aerosol_optical_depth) return null;
+  return valueAt({ hourly: h }, "aerosol_optical_depth", t);
+}
+/** Air-quality request for one point: hourly aerosol optical depth, a day back and five ahead. */
+export function airQualityUrl(lat, lon) {
+  return `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}` +
+    "&hourly=aerosol_optical_depth&timeformat=unixtime&past_days=1&forecast_days=5";
 }
 
 /** Summarise how much weather models disagree. scores: array of numbers. */

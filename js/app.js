@@ -76,9 +76,14 @@ async function loadForecast(place, kind) {
     hourly: M.VARS.join(","), daily: "sunset,sunrise", models: M.WEATHER_MODELS.join(","),
     timezone: "auto", timeformat: "unixtime", forecast_days: "8",
   });
-  let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params);
+  const [fc, aq] = await Promise.allSettled([
+    getJSON("https://api.open-meteo.com/v1/forecast?" + params),
+    getJSON(M.airQualityUrl(place.lat, place.lon), 8000), // haze; optional
+  ]);
+  if (fc.status !== "fulfilled") throw fc.reason;
+  let data = fc.value;
   if (!Array.isArray(data)) data = [data];
-  return { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind };
+  return { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind, aq: aq.status === "fulfilled" ? aq.value : null };
 }
 
 const MODEL_NAMES = { ecmwf_ifs025: "European (ECMWF)", gfs_seamless: "American (GFS)", icon_seamless: "German (ICON)" };
@@ -90,7 +95,7 @@ function scoreEvents(d) {
   const times = M.eventTimes(d.locations[0].daily, d.kind).filter(t => t != null && t + 20 * 60 > now);
   const out = [];
   for (const t of times) {
-    const r = M.scoreModels(d.locations, t);
+    const r = M.scoreModels(d.locations, t, d.aq);
     if (!r) continue;
     out.push(r);
     if (out.length >= 7) break;
@@ -436,7 +441,7 @@ function recentEvent(d) {
   const now = Date.now() / 1000;
   const times = M.eventTimes(d.locations[0].daily, d.kind).filter(t => t != null && t <= now + 10 * 60 && t >= now - 16 * 3600);
   if (!times.length) return null;
-  return M.scoreModels(d.locations, Math.max(...times));
+  return M.scoreModels(d.locations, Math.max(...times), d.aq);
 }
 
 let rateSel = null, rateEvent = null, photoMeta = "";
@@ -527,7 +532,8 @@ async function saveRating(quick) {
     id: entryId(d.kind, e.t, d.offset, p), kind: d.kind, t: e.t, offset: d.offset,
     place: { name: p.label || p.name, detail: p.detail || "", lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) },
     facing: Math.round(d.az), predicted: e.score, model: M.MODEL_VERSION,
-    inputs: Object.fromEntries(Object.entries(e.inputs).map(([k, v]) => [k, v == null ? null : Math.round(v)])),
+    inputs: Object.fromEntries(Object.entries(e.inputs).map(([k, v]) => [k, v == null ? null : k === "aod" ? Math.round(v * 1000) / 1000 : Math.round(v)])),
+    air: e.factors.air == null ? null : Math.round(e.factors.air * 100) / 100,
     rating: rateSel, notes: $("rateNotes").value.trim(), savedAt: Date.now(),
     date: isoDay(e.t, d.offset), verification: ver.text, onLocation: ver.onLocation, photoMeta,
   };
@@ -554,7 +560,7 @@ function sharePayload(x) {
   return {
     id: x.id, kind: x.kind, date: x.date, t: x.t, rating: x.rating, predicted: x.predicted, model: x.model,
     band: (b => `${b.lo}-${b.hi}`)(bandFor(x.rating * 10)), predictedBand: (b => `${b.lo}-${b.hi}`)(bandFor(x.predicted)),
-    inputs: x.inputs, facing: x.facing, onLocation: !!x.onLocation,
+    inputs: x.inputs, air: x.air ?? null, facing: x.facing, onLocation: !!x.onLocation,
     lat: dev ? x.place.lat : r(x.place.lat), lon: dev ? x.place.lon : r(x.place.lon),
     place: dev ? x.place.name : undefined, notes: dev ? x.notes || "" : undefined, savedAt: x.savedAt,
   };
@@ -671,7 +677,15 @@ async function scoreSpots(spots, kind, t = null) {
     hourly: M.VARS.join(","), daily: "sunset,sunrise", models: M.WEATHER_MODELS.join(","), timezone: "auto", timeformat: "unixtime",
     forecast_days: String(Math.min(8, Math.max(2, daysAhead))),
   });
-  let data = await getJSON("https://api.open-meteo.com/v1/forecast?" + params, 20000);
+  // haze is regional: one reading at the first spot (usually where you are) serves the whole batch
+  const [fc, aqr] = await Promise.allSettled([
+    getJSON("https://api.open-meteo.com/v1/forecast?" + params, 20000),
+    state.data && state.data.aq && Math.abs(state.place.lat - spots[0].lat) < 0.05 && Math.abs(state.place.lon - spots[0].lon) < 0.05
+      ? Promise.resolve(state.data.aq) : getJSON(M.airQualityUrl(spots[0].lat, spots[0].lon), 8000),
+  ]);
+  if (fc.status !== "fulfilled") throw fc.reason;
+  let data = fc.value;
+  const aq = aqr.status === "fulfilled" ? aqr.value : null;
   if (!Array.isArray(data)) data = [data];
   const n = M.ALL_KM.length;
   return spots.map((sp, i) => {
@@ -679,7 +693,7 @@ async function scoreSpots(spots, kind, t = null) {
     let when = t;
     if (when == null) when = M.eventTimes(locs[0].daily, kind).find(x => x != null && x + 20 * 60 > now);
     if (when == null) return { ...sp, score: null };
-    const r = M.scoreModels(locs, when);
+    const r = M.scoreModels(locs, when, aq);
     return r ? { ...sp, offset: locs[0].utc_offset_seconds || 0, ...r } : { ...sp, score: null };
   });
 }
@@ -919,10 +933,15 @@ async function loadPast(place, kind, dateStr) {
     data = await getJSON(base + params, 20000);
   }
   if (!Array.isArray(data)) data = [data];
-  const d = { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind };
+  let aq = null;
+  try {
+    aq = await getJSON(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${place.lat.toFixed(3)}&longitude=${place.lon.toFixed(3)}` +
+      `&hourly=aerosol_optical_depth&timeformat=unixtime&start_date=${dateStr}&end_date=${next}`, 8000);
+  } catch { /* haze unknown for this date */ }
+  const d = { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind, aq };
   const t = M.eventTimes(data[0].daily, kind)[0];
   if (t == null) throw new Error("no-event");
-  const e = M.scoreModels(data, t);
+  const e = M.scoreModels(data, t, aq);
   if (!e) throw new Error("no-data");
   return { d, e };
 }
