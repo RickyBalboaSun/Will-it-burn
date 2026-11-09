@@ -565,7 +565,7 @@ async function copyText(text, msgEl) {
 }
 $("rateCopy").addEventListener("click", () => {
   const e = logAll().find(x => x.id === entryId(state.data.kind, rateEvent.t, state.data.offset, state.place));
-  if (e) copyText("Will It Burn log entry\n" + entryText(e), $("rateMsg"));
+  if (e) copyText("Sunscore log entry\n" + entryText(e), $("rateMsg"));
 });
 
 function renderLog() {
@@ -592,7 +592,7 @@ $("logList").addEventListener("click", ev => {
 });
 $("logCopyAll").addEventListener("click", () => {
   const log = logAll();
-  copyText(`Will It Burn log: ${log.length} entr${log.length === 1 ? "y" : "ies"}\n\n` + log.map(entryText).join("\n\n"), $("logMsg"));
+  copyText(`Sunscore log: ${log.length} entr${log.length === 1 ? "y" : "ies"}\n\n` + log.map(entryText).join("\n\n"), $("logMsg"));
 });
 
 
@@ -860,7 +860,7 @@ async function shareCard() {
   g.fillStyle = "#1a1424"; g.fillRect(0, H * 0.86, W, H);
   g.fillStyle = "#fff"; g.textAlign = "center";
   const serif = '"Fraunces", Georgia, serif', sans = '"Inter", system-ui, sans-serif';
-  g.font = `700 52px ${serif}`; g.fillText("Will It Burn?", W / 2, 130);
+  g.font = `700 52px ${serif}`; g.fillText("Sunscore", W / 2, 130);
   g.globalAlpha = 0.85; g.font = `500 42px ${sans}`;
   g.fillText(`${dayName(e.t, d.offset, d.kind)} · ${d.kind} ${clock(e.t, d.offset)}`, W / 2, 260);
   g.globalAlpha = 1; g.font = `700 340px ${serif}`; g.fillText(String(e.score), W / 2, 620);
@@ -878,8 +878,8 @@ async function shareCard() {
   try {
     const blob = await new Promise(r => c.toBlob(r, "image/png"));
     const file = new File([blob], "will-it-burn.png", { type: "image/png" });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text, title: "Will It Burn?" }); return; }
-    if (navigator.share) { await navigator.share({ text, url, title: "Will It Burn?" }); return; }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text, title: "Sunscore" }); return; }
+    if (navigator.share) { await navigator.share({ text, url, title: "Sunscore" }); return; }
   } catch (err) { if (err && err.name === "AbortError") return; }
   copyText(`${text}\n${url}`, $("shareMsg"));
 }
@@ -895,7 +895,7 @@ $("calBtn").addEventListener("click", () => {
   const end = d.kind === "sunset" ? (v.civil || e.t + 1800) : (v.golden || e.t + 1800);
   const word = d.kind === "sunset" ? "Sunset" : "Sunrise";
   const lines = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Will It Burn//EN", "BEGIN:VEVENT",
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Sunscore//EN", "BEGIN:VEVENT",
     `UID:${entryId(d.kind, e.t, d.offset, p)}@will-it-burn`, `DTSTAMP:${icsDate(Date.now() / 1000)}`,
     `DTSTART:${icsDate(start)}`, `DTEND:${icsDate(end)}`,
     `SUMMARY:${word} ${e.score}/100 – ${e.verdict.replace(/[,;]/g, "")}`,

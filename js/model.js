@@ -344,7 +344,7 @@ export function photoCheck(spot, meta, eventSec, offset, kind = "sunset") {
 /** The GitHub issue body that the data repo's ingest job parses. */
 export function logIssueBody(x, clockText) {
   const lines = [
-    "Rated in the Will It Burn app.", "", "<!-- will-it-burn-log v1 -->",
+    "Rated in the Sunscore app.", "", "<!-- will-it-burn-log v1 -->",
     `kind: ${x.kind}`, `date: ${x.date}`, `time_local: ${clockText}`,
     `place: ${x.place.name}`, `detail: ${x.place.detail || ""}`, `lat: ${x.place.lat}`, `lon: ${x.place.lon}`,
     `facing: ${x.facing}`, `app_score: ${x.predicted}`, `model: ${x.model}`, `rating: ${x.rating}`,

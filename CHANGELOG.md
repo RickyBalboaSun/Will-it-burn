@@ -1,6 +1,10 @@
 # App changelog
 
 
+
+## 4.4 – 8 Nov 2026
+- Renamed to **Sunscore: Sunrise & Sunset** ("Will it burn?" stays as the tagline). New app icon and mark.
+
 ## 4.3.2 – 7 Nov 2026
 - Maps work again: switched to OpenStreetMap tiles (CARTO started requiring an API key).
 - Every Log entry now has its own "Log on GitHub" button, marked once sent; clearer guidance on where rating happens.
