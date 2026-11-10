@@ -603,7 +603,7 @@ function renderRateBanner() {
   const yday = dayKey(e.t, d.offset) === dayKey(Date.now() / 1000 - 86400, d.offset);
   const whose = dn === "Tonight" ? "Tonight's" : dn === "Today" ? "This morning's" : yday ? (d.kind === "sunset" ? "Last night's" : "Yesterday's") : "The";
   const gone = Date.now() / 1000 >= e.t;
-  b.textContent = gone ? `${whose} ${d.kind} has gone. How was it? Rate it ↓` : `Watching the ${d.kind}? Rate it ↓`;
+  b.textContent = gone ? `${whose} ${d.kind} has gone. How was it? ↓` : `Watching the ${d.kind}? Rate it ↓`;
   b.hidden = done;
 }
 $("rateBanner").addEventListener("click", () => $("rateCard").scrollIntoView({ behavior: "smooth", block: "start" }));
