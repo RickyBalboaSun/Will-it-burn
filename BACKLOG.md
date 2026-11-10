@@ -90,3 +90,9 @@ Constraints: no card on Firebase (no Cloud Functions, so no instant push); Netli
 - Open decisions: do friends see photos before approval; is the name shown only to friends.
 - Build sketch (A1+B1+B2+C1–C4): users/{uid} {name}; invites/{code} {uid} (get-only); friendships/{uidA_uidB} created by the acceptor, rule checks the invite; friends feed = photos where uid in [...] and status == approved (one composite index); scores derived from approved photos only (only the admin can approve, so they can't be forged); optional Google sign-in linked to the anonymous account so friends and points survive a new phone. Robin: re-paste rules, tap one index link, optionally enable Google sign-in. One upload.
 - Robin's picks (9 Nov): A1 + A2, B1 + B2 + B3, C1–C5, D1 friends see photos straight away, D2 nicknames friends-only. Mocked up as row 7 of https://claude.ai/artifact/Nxw2xPgSHpATAVc3qpNrEw (designed, not built). Assumed: a follow needs the owner's Accept (names are friends-only); points count only once a photo is approved. B3 still needs a card or GitHub.
+
+## Google Play launch (started 9 Nov)
+- NAME RISK: "SunScore - Learn Piano" is on Google Play and the App Store (50K+ installs, since May 2026, sunscore.so), and Redfin/Shadowmap launched a 0-100 "Sunscore" sunlight rating in May 2026. Robin to decide: keep "Sunscore: Sunrise & Sunset" or rename. Domain and Android package wait on this (the package is tied to the domain).
+- Order: name -> domain -> Netlify custom domain + Firebase authorised domain -> privacy policy page -> Android package (PWABuilder, from the phone) + assetlinks.json -> Play Console: closed test, 12 testers for 14 days -> apply for production.
+- Robin can start now: Play developer account ($25 one-off, identity check).
+- Domain prices seen: .app about $8 first year, $14-15 renewal (Cloudflare, Porkbun); .com about $10-11 a year. Availability not checked (registrar lookups are blocked from the workspace).
