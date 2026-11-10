@@ -38,7 +38,7 @@ export const roundLL = v => Math.round(v * 100) / 100;
 export function initCommunity(ctx) {
   const { $, esc, store, state } = ctx;
   let backend = null, backendP = null, feedCache = null, map = null, layer = null;
-  let kind = "all", period = "tonight", fireOnly = false, composerEvent = null, composerFile = null;
+  let kind = "all", period = "week", fireOnly = false, composerEvent = null, composerFile = null;
 
   if (!enabled()) return { enabled: false, offerAfterRating() {}, renderMine() {}, renderQueue() {}, renderTab() {}, warm() {} };
   $("tabCommunityBtn").hidden = false;

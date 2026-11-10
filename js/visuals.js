@@ -162,7 +162,7 @@ export function sliceSVG({ e, layers, kind, W = 330, H = 230 }) {
   // ground, you, distances
   o.push(`<path d="M-20 ${g + 4} Q ${W / 2} ${g - 10} ${W + 20} ${g + 4} L ${W + 20} ${H} L -20 ${H} Z" fill="${PAL.ground}"/>`);
   o.push(`<circle cx="${X[0]}" cy="${g - 10}" r="6" fill="#fff"/><rect x="${X[0] - 2}" y="${g - 5}" width="4" height="8" rx="2" fill="#fff"/>`);
-  for (const km of M.ALL_KM) o.push(`<text x="${X[km]}" y="${g + 20}" font-size="10" fill="rgba(255,255,255,0.7)" text-anchor="middle">${km ? km + " km" : "You"}</text>`);
+  for (const km of M.ALL_KM) o.push(`<text x="${X[km]}" y="${g + 20}" font-size="10" fill="rgba(255,255,255,0.7)" text-anchor="middle">${km ? M.humanDist(km) : "You"}</text>`);
   o.push(`<line x1="${X[0] - 6}" x2="${X[25] + 30}" y1="${g + 30}" y2="${g + 30}" stroke="${PAL.lit}" stroke-width="2"/><text x="${X[0] - 6}" y="${g + 41}" font-size="9.5" fill="${PAL.lit2}">Canvas</text>`);
   o.push(`<line x1="${X[75] - 14}" x2="${X[250] + 14}" y1="${g + 30}" y2="${g + 30}" stroke="${pathOk ? PAL.path : PAL.block}" stroke-width="2"/><text x="${X[250] + 14}" y="${g + 41}" font-size="9.5" fill="${pathOk ? "#b5f0e2" : "#ffc9bf"}" text-anchor="end">Light path${pathOk ? "" : ": blocked"}</text>`);
   o.push(`</g></svg>`);
@@ -171,7 +171,7 @@ export function sliceSVG({ e, layers, kind, W = 330, H = 230 }) {
 function sliceLabel(layers, pathOk, kind) {
   const r = x => x == null ? "unknown" : Math.round(x) + "%";
   return `Side view towards the ${kind}. Overhead: mid cloud ${r(layers[0].mid)}, high ${r(layers[0].high)}, low ${r(layers[0].low)}. ` +
-    `Light path 75 to 250 km: low cloud ${M.PATH_KM.map(k => r(layers[k].low)).join(", ")}. ${pathOk ? "The light can get through." : "The light is blocked."}`;
+    `Light path ${M.humanDist(75)} to ${M.humanDist(250)}: low cloud ${M.PATH_KM.map(k => r(layers[k].low)).join(", ")}. ${pathOk ? "The light can get through." : "The light is blocked."}`;
 }
 
 /* ---------------- C: mini sky stack ---------------- */

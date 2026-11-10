@@ -32,6 +32,10 @@ const scoreColour = s => mix("6e707b", "ff7a2f", Math.min(1, s / 85));
 const localDate = (unix, off) => new Date((unix + off) * 1000);
 // Follow the phone's own 12/24-hour setting; times are shown in the place's time zone.
 const CLOCK_FMT = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+// US (and a couple of other) phones get miles and feet
+M.UNITS.imperial = /^(en-US|en-LR|my)\b/i.test(navigator.language || "") || new URLSearchParams(location.search).get("units") === "imperial";
+const dist = km => M.humanDist(km), height = m => M.humanHeight(m);
+if (M.UNITS.imperial) for (const el of document.querySelectorAll("[data-km]")) el.textContent = dist(Number(el.dataset.km));
 const USES_12H = CLOCK_FMT.resolvedOptions().hour12 !== false && CLOCK_FMT.resolvedOptions().hourCycle !== "h23";
 function clock(unix, off) {
   const d = localDate(unix, off);
@@ -156,7 +160,7 @@ function renderPlace(place) {
   $("placeBtn").hidden = false;
   $("locName").textContent = place.label || place.name;
   const coords = `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`;
-  const acc = place.accuracy ? ` · ±${place.accuracy < 1000 ? Math.round(place.accuracy) + " m" : (place.accuracy / 1000).toFixed(1) + " km"}` : "";
+  const acc = place.accuracy ? ` · ±${dist(place.accuracy / 1000)}` : "";
   const parts = [place.detail, (place.gps ? "GPS " : "") + coords + acc].filter(Boolean);
   const map = `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lon}`;
   $("locSub").innerHTML = parts.map(esc).join("<br>") + ` · <a href="${map}" target="_blank" rel="noopener">View on map</a>`;
@@ -217,9 +221,10 @@ function renderSelected() {
   drawTimeline();
 
   // week strip
-  const best = state.events.reduce((b, x, i) => (x.score > state.events[b].score ? i : b), 0);
+  const shown = state.events.slice(0, 5);   // five days fit across a phone without scrolling
+  const best = shown.reduce((b, x, i) => (x.score > shown[b].score ? i : b), 0);
   $("weekTitle").textContent = kind === "sunset" ? "Sunsets this week" : "Sunrises this week";
-  $("week").innerHTML = state.events.map((x, i) => `
+  $("week").innerHTML = shown.map((x, i) => `
     <button class="day ${i === state.sel ? "on" : ""}" data-i="${i}" aria-label="${esc(dayName(x.t, off, kind))}: ${x.score}">
       <span class="d">${esc(shortDay(x.t, off))}</span>
       ${V.miniStack(x)}
@@ -249,8 +254,8 @@ function renderSelected() {
   $("detailBody").innerHTML = Object.entries(e.factors).map(([k, val]) => `
     <div class="f-row"><span>${names[k]}</span><div class="f-bar"><div class="f-fill" style="width:${Math.round(val * 100)}%"></div></div><span class="f-num">${Math.round(val * 100)}%</span></div>`).join("")
     + `<div class="raw">Overhead: mid cloud ${n(i.cMid)}%, high ${n(i.cHigh)}%, low ${n(i.low)}%, total ${n(i.total)}%<br>
-       Towards the sun (75–250 km ${M.compass(d.az)}): low ${n(i.pathLow)}%, mid ${n(i.pathMid)}%<br>
-       Rain ${n(i.rainP)}% · visibility ${n(i.visKm)} km · humidity ${n(i.hum)}%</div>`;
+       Towards the sun (${dist(75)}–${dist(250)} ${M.compass(d.az)}): low ${n(i.pathLow)}%, mid ${n(i.pathMid)}%<br>
+       Rain ${n(i.rainP)}% · visibility ${i.visKm == null ? "?" : dist(i.visKm)} · humidity ${n(i.hum)}%</div>`;
 }
 
 function renderConfidence() {
@@ -353,10 +358,10 @@ function renderElevation() {
   el.hidden = !(elev >= 1500);
   if (!el.hidden) {
     el.textContent = low >= 20
-      ? `High viewpoint (${Math.round(elev).toLocaleString()} m): some of the "low" cloud may be above you and light up, so this score may be too low.`
-      : `High viewpoint (${Math.round(elev).toLocaleString()} m): if low cloud forms, it may light up rather than block the view.`;
+      ? `High viewpoint (${height(elev)}): some of the "low" cloud may be above you and light up, so this score may be too low.`
+      : `High viewpoint (${height(elev)}): if low cloud forms, it may light up rather than block the view.`;
   }
-  $("locElev").textContent = elev != null ? `· ${Math.round(elev).toLocaleString()} m` : "";
+  $("locElev").textContent = elev != null ? `· ${height(elev)}` : "";
   $("locFlag").hidden = el.hidden && $("locWarn").hidden && $("terrainNote").hidden;
 }
 
@@ -404,12 +409,12 @@ async function drawMap() {
     const block = isPath ? Math.min(100, (low || 0) + 0.5 * (mid || 0)) : (low || 0);
     const r = (n) => n == null ? "–" : Math.round(n);
     L.circleMarker([la, lo], { radius: km === 0 ? 9 : 7, color: "#fff", weight: 2, fillColor: km === 0 ? "#fff" : cloudColour(block), fillOpacity: 1 })
-      .bindPopup(`<b>${km === 0 ? "You" : km + " km " + M.compass(d.az)}</b><br>${isPath ? "Light path: must be clear" : "Canvas: cloud here lights up"}<br>Low ${r(low)}% · mid ${r(mid)}% · high ${r(high)}%`)
+      .bindPopup(`<b>${km === 0 ? "You" : dist(km) + " " + M.compass(d.az)}</b><br>${isPath ? "Light path: must be clear" : "Canvas: cloud here lights up"}<br>Low ${r(low)}% · mid ${r(mid)}% · high ${r(high)}%`)
       .addTo(mapLayer);
   });
   map.fitBounds(L.latLngBounds([[p.lat, p.lon], end]).pad(0.15));
   setTimeout(() => map.invalidateSize(), 50);
-  $("mapNote").textContent = `The dashed line points ${M.compass(d.az)} towards the ${d.kind}. Clouds near you are the canvas; the points 75–250 km away need to be clear for the light to reach it. Tap a point for its cloud cover.`;
+  $("mapNote").textContent = `The dashed line points ${M.compass(d.az)} towards the ${d.kind}. Clouds near you are the canvas; the points ${dist(75)}–${dist(250)} away need to be clear for the light to reach it. Tap a point for its cloud cover.`;
 }
 $("mapCard").addEventListener("toggle", drawMap);
 
@@ -595,7 +600,10 @@ function renderRateBanner() {
   const d = state.data, id = entryId(d.kind, e.t, d.offset, state.place);
   const done = logAll().some(x => x.id === id);
   const dn = dayName(e.t, d.offset, d.kind);
-  b.textContent = `How was ${dn === "Tonight" || dn === "Today" ? dn.toLowerCase() + "'s" : "the"} ${d.kind}? Rate it ↓`;
+  const yday = dayKey(e.t, d.offset) === dayKey(Date.now() / 1000 - 86400, d.offset);
+  const whose = dn === "Tonight" ? "Tonight's" : dn === "Today" ? "This morning's" : yday ? (d.kind === "sunset" ? "Last night's" : "Yesterday's") : "The";
+  const gone = Date.now() / 1000 >= e.t;
+  b.textContent = gone ? `${whose} ${d.kind} has gone. How was it? Rate it ↓` : `Watching the ${d.kind}? Rate it ↓`;
   b.hidden = done;
 }
 $("rateBanner").addEventListener("click", () => $("rateCard").scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -768,9 +776,19 @@ $("spotList").addEventListener("click", ev => {
 /* ---------- find a better spot nearby ---------- */
 let nearRadius = 25, nearMap = null, nearLayer = null;
 document.querySelectorAll(".radius").forEach(b => b.addEventListener("click", () => {
+  if (nearRadius === Number(b.dataset.r)) return;
   nearRadius = Number(b.dataset.r);
   document.querySelectorAll(".radius").forEach(x => x.classList.toggle("on", x === b));
+  if (!$("scanBtn").disabled) $("scanBtn").click();
 }));
+/** Spots searches by itself when opened, once per place, day and sunset/sunrise. */
+let autoScanKey = "";
+function autoScan() {
+  if (!state.place || !state.data || $("scanBtn").disabled) return;
+  const e = state.events[state.sel], key = `${state.place.lat.toFixed(3)},${state.place.lon.toFixed(3)},${state.data.kind},${e && e.t}`;
+  if (key === autoScanKey) return;
+  autoScanKey = key; $("scanBtn").click();
+}
 let lastVpFailed = false;
 $("scanBtn").addEventListener("click", async () => {
   $("scanBtn").disabled = true; $("nearList").innerHTML = "";
@@ -838,7 +856,7 @@ async function terrainMany(places, az) {
 const directionsUrl = x => `https://www.google.com/maps/dir/?api=1&destination=${x.lat.toFixed(5)},${x.lon.toFixed(5)}`;
 async function viewpointScan(R) {
   const p = state.place, e = state.events[state.sel], d = state.data;
-  $("nearStatus").textContent = `Looking for viewpoints within ${R} km…`;
+  $("nearStatus").textContent = `Looking for viewpoints within ${dist(R)}…`;
   let places = [], failed = false;
   try { places = M.parseViewpoints(await overpass(M.overpassQuery(p.lat, p.lon, R)), p.lat, p.lon, 12); }
   catch { failed = true; }
@@ -858,13 +876,13 @@ async function viewpointScan(R) {
   const best = spots[0];
   const open = spots.filter(x => x.view && x.view.level === "open");
   $("nearStatus").innerHTML = !best ? "" :
-    `<b>Best bet: ${esc(best.name)}</b>, ${best.dist} km ${best.dir}: scores ${best.score}${best.view ? `, ${best.view.text}` : ""}.` +
+    `<b>Best bet: ${esc(best.name)}</b>, ${dist(best.dist)} ${best.dir}: scores ${best.score}${best.view ? `, ${best.view.text}` : ""}.` +
     (h ? (Math.abs(best.score - h.score) <= 3 ? ` The sky is much the same where you are (${h.score}), so pick for the view.` : ` Where you are: ${h.score}.`) : "") +
     (open.length ? "" : " None of these has a fully open view towards the sun.");
   $("nearList").innerHTML = spots.slice(0, 8).map(x => `
     <div class="vp">
       <button class="near-item" data-lat="${x.lat}" data-lon="${x.lon}" data-name="${esc(x.name)}" data-vp="1">
-        <span>${esc(x.name)}<br><small>${x.kindLabel}${x.ele ? ` · ${Math.round(x.ele)} m` : ""} · ${x.dist} km ${x.dir}${x.view ? ` · ${x.view.text}` : ""}</small></span>
+        <span>${esc(x.name)}<br><small>${x.kindLabel}${x.ele ? ` · ${height(x.ele)}` : ""} · ${dist(x.dist)} ${x.dir}${x.view ? ` · ${x.view.text}` : ""}</small></span>
         <span class="ns" style="color:${scoreColour(x.score)}">${x.score}</span>
       </button>
       <a class="vp-go" href="${directionsUrl(x)}" target="_blank" rel="noopener" aria-label="Directions to ${esc(x.name)}">Go ↗</a>
@@ -892,14 +910,14 @@ async function ringScan(R, fallback = false) {
     const best = scored[0];
     const spread = best.score - Math.min(...scored.map(x => x.score));
     $("nearStatus").innerHTML = (fallback ? (lastVpFailed ? "The map service didn't answer, so here's how the sky compares around you instead. "
-      : `No mapped viewpoints within ${R} km. Here's how the sky compares around you. `) : "") + (!here ? ""
-      : best.dist !== 0 && best.score - here.score >= 8 ? `<b>${best.dist} km ${best.dir} looks better:</b> ${best.score} vs ${here.score} here.`
-      : spread < 5 ? `<b>Much the same everywhere within ${R} km</b> (around ${here.score}), so there's no need to travel for this one.`
-      : here.score >= 50 ? `<b>You're already in a good spot.</b> Nowhere within ${R} km scores clearly better than here (${here.score}).`
+      : `No mapped viewpoints within ${dist(R)}. Here's how the sky compares around you. `) : "") + (!here ? ""
+      : best.dist !== 0 && best.score - here.score >= 8 ? `<b>${dist(best.dist)} ${best.dir} looks better:</b> ${best.score} vs ${here.score} here.`
+      : spread < 5 ? `<b>Much the same everywhere within ${dist(R)}</b> (around ${here.score}), so there's no need to travel for this one.`
+      : here.score >= 50 ? `<b>You're already in a good spot.</b> Nowhere within ${dist(R)} scores clearly better than here (${here.score}).`
       : `<b>Nowhere nearby is clearly better</b> than here (${here.score}).`);
     $("nearList").innerHTML = scored.slice(0, 6).map(x => `
-      <button class="near-item" data-lat="${x.lat}" data-lon="${x.lon}" data-name="${x.dist ? `${x.dist} km ${x.dir}` : "Here"}">
-        <span>${x.dist ? `${x.dist} km ${x.dir}` : "Where you are"}<br><small>${x.verdict}${x.dist ? " · tap to check it" : ""}</small></span>
+      <button class="near-item" data-lat="${x.lat}" data-lon="${x.lon}" data-name="${x.dist ? `${dist(x.dist)} ${x.dir}` : "Here"}">
+        <span>${x.dist ? `${dist(x.dist)} ${x.dir}` : "Where you are"}<br><small>${x.verdict}${x.dist ? " · tap to check it" : ""}</small></span>
         <span class="ns" style="color:${scoreColour(x.score)}">${x.score}</span>
       </button>`).join("") + `<div class="note">This only knows about the sky. Check the spot has an open view ${M.compass(d.az)}, with no hills, trees or buildings in the way.</div>`;
     drawNearMap(scored, p);
@@ -928,7 +946,7 @@ async function nameNearby(list) {
       const btn = document.querySelector(`.near-item[data-lat="${x.lat}"][data-lon="${x.lon}"]`);
       if (!name || !btn) return;
       btn.dataset.place = name;
-      btn.querySelector("span").firstChild.textContent = `${x.dist} km ${x.dir} · near ${name}`;
+      btn.querySelector("span").firstChild.textContent = `${dist(x.dist)} ${x.dir} · near ${name}`;
     } catch { /* keep the distance-only label */ }
   }));
 }
@@ -1376,12 +1394,19 @@ $("logRepoSave").addEventListener("click", () => {
   applyLogMode(); renderLog(); if (state.data) renderRate();
 });
 
+/* ---------- first-open welcome ---------- */
+{
+  const seen = store.get("wib-welcomed", false) || logAll().length > 0 || store.get("wib-release", null);
+  $("welcome").hidden = !!seen;
+  $("welcomeOk").addEventListener("click", () => { store.set("wib-welcomed", true); $("welcome").hidden = true; });
+}
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.hidden = t.dataset.tab !== name);
   document.querySelectorAll(".tabbar button").forEach(b => { b.classList.toggle("on", b.dataset.go === name); b.setAttribute("aria-current", b.dataset.go === name ? "page" : "false"); });
   window.scrollTo(0, 0);
-  if (name === "spots") renderMySpots();
+  if (name === "spots") { renderMySpots(); autoScan(); }
   if (name === "log") { renderLog(); $("vpDiag").textContent = store.get("wib-vp-diag", "") ? "Last viewpoint lookup: " + store.get("wib-vp-diag", "") : ""; }
   if (name === "more") { renderAlerts(); if (community && community.enabled) community.renderMine(); }
   if (name === "community" && community) community.renderTab();
@@ -1458,10 +1483,8 @@ if ("serviceWorker" in navigator) {
 }
 $("modelVersion").textContent = M.MODEL_VERSION;
 setTimeout(shareBacklog, 4000);
-$("scaleKey").textContent = M.SCALE_KEY;
-$("howBtn").addEventListener("click", () => $("how").showModal());
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.7.4";
+const RELEASE = "4.8";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

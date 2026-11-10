@@ -21,7 +21,7 @@
 <div class="sky" id="sky"><canvas id="skyCanvas"></canvas></div>
 <div class="wrap">
   <header class="top">
-    <div class="brand">Sunscore</div>
+    <div class="brand"><img src="icons/icon-192.png" alt="" width="26" height="26">Sunscore</div>
     <div class="top-actions">
       <button class="pill" id="placeBtn" hidden>Change place</button>
     </div>
@@ -29,7 +29,9 @@
 
   <!-- loading -->
   <section class="center" id="loading">
-    <div class="spinner"></div>
+    <div class="skel" aria-hidden="true">
+      <div class="sk sk-pill"></div><div class="sk sk-line"></div><div class="sk sk-score"></div><div class="sk sk-line short"></div><div class="sk sk-scene"></div>
+    </div>
     <div class="status" id="loadingText">Finding your location…</div>
   </section>
 
@@ -68,6 +70,16 @@
         <button class="save-spot" id="saveSpot" hidden>☆ Save this spot</button>
       </div>
     </div>
+    <section class="card welcome" id="welcome" hidden>
+      <h2>Welcome to Sunscore</h2>
+      <p>Every sunset and sunrise gets a score from 0 to 100 for how colourful the sky will be, worked out from the cloud, the haze and the path the light takes to reach you.</p>
+      <ul>
+        <li>Tap a day in the week to plan ahead.</li>
+        <li><b>Spots</b> finds viewpoints near you.</li>
+        <li>Afterwards, rate the sky in one tap. It helps the forecasts get better.</li>
+      </ul>
+      <button class="btn small" id="welcomeOk">Got it</button>
+    </section>
     <section class="hero" aria-live="polite">
       <div class="install-bar" id="installBar" hidden>
         <img src="icons/icon-192.png" alt="" width="40" height="40">
@@ -75,11 +87,11 @@
         <button class="btn small" id="installBtn">Install</button>
         <button class="install-x" id="installX" aria-label="Not now">×</button>
       </div>
-      <button class="rate-banner" id="rateBanner" hidden></button>
       <div class="when" id="when"></div>
       <div class="score"><span id="score"></span><small>/100</small></div>
       <div class="verdict" id="verdict"></div>
-      <div class="scale-key" id="scaleKey"></div>
+      <button class="conf" id="conf" hidden></button>
+      <button class="rate-banner" id="rateBanner" hidden></button>
       <figure class="scene" id="scene"></figure>
       <div class="slider-row">
         <input type="range" id="timeSlider" min="-30" max="30" step="1" value="10" aria-label="Minutes from sunset">
@@ -87,7 +99,6 @@
       </div>
       <div class="countdown" id="countdown"></div>
       <div class="offline" id="offline" hidden></div>
-      <button class="conf" id="conf" hidden></button>
       <div class="past-bar" id="pastBar" hidden>
         <span>Looking back at a past date</span>
         <button class="btn small" id="pastBack">Back to the forecast</button>
@@ -99,6 +110,7 @@
     </section>
     <section class="card" id="weekCard">
       <h2 id="weekTitle">The week ahead</h2>
+      <div class="week-hint">Tap a day to plan ahead</div>
       <div class="week" id="week"></div>
     </section>
     <section class="card">
@@ -110,7 +122,7 @@
       <div class="times" id="times"></div>
       <div class="note" id="timesNote"></div>
       <div class="compass-box" id="compassBox" hidden>
-        <div class="dial"><div class="needle" id="needle"></div><span class="n">N</span></div>
+        <div class="dial"><div class="needle" id="needle"></div></div>
         <div class="compass-text" id="compassText">Hold your phone flat.</div>
       </div>
       <div class="row" style="margin-top:12px">
@@ -180,12 +192,12 @@
     <details class="card" id="nearCard" open>
       <summary>Viewpoints near you</summary>
       <div class="detail-body">
-        <div class="note" style="margin-top:0">Real viewpoints, beaches, cliffs and peaks from OpenStreetMap, each scored for the same <span class="kindWord">sunset</span>, with a check that the view towards the sun is open.</div>
+        <div class="note" style="margin-top:0">Viewpoints, beaches and peaks nearby, scored for the same <span class="kindWord">sunset</span>.</div>
         <div class="row">
-          <button class="btn small ghost radius on" data-r="25">Within 25 km</button>
-          <button class="btn small ghost radius" data-r="50">Within 50 km</button>
+          <button class="btn small ghost radius on" data-r="25">Within <span data-km="25">25 km</span></button>
+          <button class="btn small ghost radius" data-r="50">Within <span data-km="50">50 km</span></button>
         </div>
-        <button class="btn small" id="scanBtn">Find viewpoints</button>
+        <button class="btn small" id="scanBtn">Search again</button>
         <div class="near-status" id="nearStatus"></div>
         <div id="nearMap" class="map" hidden></div>
         <div class="near-list" id="nearList"></div>
@@ -238,8 +250,8 @@
         </div>
       </div>
       <div class="chips" role="group" aria-label="Which photos">
-        <button class="chip on" id="commTonight">Latest</button>
-        <button class="chip" id="commWeek">This week</button>
+        <button class="chip" id="commTonight">Latest</button>
+        <button class="chip on" id="commWeek">This week</button>
         <button class="chip" id="commBest">Best ever</button>
         <button class="chip" id="commFire">On fire only</button>
       </div>
@@ -289,7 +301,7 @@
       <section class="card">
         <h2>Your ratings</h2>
         <label class="field-row"><span>Share my ratings anonymously to improve forecasts</span><input type="checkbox" id="shareRatings" checked></label>
-        <div class="note">Sent: the rating, the forecast it was scored against, the time and an area rounded to about 1 km. No names or accounts.</div>
+        <div class="note">Sent: the rating, the forecast it was scored against, the time and an area rounded to about <span data-km="1">1 km</span>. No names or accounts.</div>
       </section>
       <section class="card" id="devCard" hidden>
         <h2>Developer</h2>
@@ -310,7 +322,6 @@
   </nav>
 
   <footer class="foot">
-    <button class="linkbtn" id="howBtn">How it works</button><br>
     Forecast by <a href="https://open-meteo.com">Open-Meteo</a> · Model <span id="modelVersion"></span><br>
     Scores are predictions, not promises.
   </footer>
@@ -332,7 +343,7 @@
     <button data-band="On fire" role="radio"><i class="q5"></i><b>On fire</b></button>
   </div>
   <ul class="comp-checks">
-    <li>Placed within about 1 km, never your exact spot</li>
+    <li>Placed within about <span data-km="1">1 km</span>, never your exact spot</li>
     <li>Hidden details removed: camera, time stamp, GPS</li>
     <li>No name or account shown</li>
   </ul>
@@ -352,7 +363,7 @@
     <button class="btn" id="pvForecastBtn">See the forecast here</button>
     <a class="btn ghost" id="pvGo" target="_blank" rel="noopener">Go ↗</a>
   </div>
-  <div class="note">Shared anonymously. The pin is within about 1 km of where it was taken.</div>
+  <div class="note">Shared anonymously. The pin is within about <span data-km="1">1 km</span> of where it was taken.</div>
   <button class="linkbtn" id="pvReport">Report this photo</button>
   <div class="rate-msg" id="pvMsg"></div>
 </dialog>
@@ -360,6 +371,9 @@
   <form method="dialog"><button class="how-close" aria-label="Close">×</button></form>
   <h2 id="wnTitle">What's new</h2>
   <ul class="wn">
+    <li><b>Spots searches by itself</b> when you open it, for viewpoints within 25 km.</li>
+    <li><b>Miles and feet</b> on US phones.</li>
+    <li><b>Tidier Today screen</b>: forecast confidence sits under the score, and the week shows five days at a glance. Tap a day to plan ahead.</li>
     <li><b>Community</b>: see sunsets and sunrises shared from around the world on a map, and add your own photo after you rate a sky.</li>
     <li><b>Will It Burn? is now Sunscore</b>, with a new icon. Same forecasts, same 0–100 score.</li>
     <li><b>Today tab</b>: the main tab is now called Today, as it covers sunrises as well as sunsets.</li>
@@ -390,7 +404,7 @@
     <text x="22" y="160" fill="#fff" font-size="10">you</text>
   </svg>
   <p>The best sunsets happen when the sun, already at or below your horizon, shines <b>underneath</b> clouds above you and lights them from below.</p>
-  <p>So the app checks the forecast in two places: <b>overhead</b> (is there cloud to light up?) and <b>75–250 km towards the sun</b> (is the sky clear enough for the light to get through?).</p>
+  <p>So the app checks the forecast in two places: <b>overhead</b> (is there cloud to light up?) and <b><span data-km="75">75 km</span> to <span data-km="250">250 km</span> towards the sun</b> (is the sky clear enough for the light to get through?).</p>
   <ul>
     <li><b>Cloud canvas</b>: mid and high cloud overhead, ideally 30–70% cover.</li>
     <li><b>Clear horizon</b>: little low cloud along the light path.</li>

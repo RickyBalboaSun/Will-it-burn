@@ -75,3 +75,9 @@ Suggested first batch: UI 1–6 and 9 plus the daily nudge, one upload.
 
 - Community speed later: once there are a few hundred photos, move thumbnails out of the photo records into their own collection so the map loads just the light records first (needs a rules re-paste). Consider defaulting the filter to "This week" while there are few photos.
 - Compass (Robin, 9 Nov): the "N" on the compass doesn't point north. Drop or fix it, and make it clearer that the arrow points to the sunset (e.g. label the arrow "Sunset" / "Sunrise" with the direction, "West-south-west").
+
+## Decisions 9 Nov (Robin)
+- Built in 4.8: 2, 3, 4, 5, 7, 8, 9, compass (arrow only), Community opens on This week, week strip 5 days.
+- On hold: 1 (one scale everywhere).
+- Plan ahead (17): already possible (Change place + tap a day); 4.8 adds the "Tap a day to plan ahead" hint. Bigger version (pick any place without changing your home place) still open.
+- Not yet decided: 12–16, 18–25 from the numbered list.

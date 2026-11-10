@@ -333,7 +333,15 @@ export function distanceKm(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 const humanGap = mins => { const a = Math.abs(Math.round(mins)); return a < 90 ? `${a} min` : `${(a / 60).toFixed(a < 600 ? 1 : 0)} h`; };
-const humanDist = km => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(km < 10 ? 1 : 0)} km`;
+/** Units for display: the app switches to miles and feet for US phones. Scoring always uses km and m. */
+export const UNITS = { imperial: false };
+/** A distance for people: "800 m", "2.4 km", "12 km" (or "0.5 mi", "8 mi"). */
+export function humanDist(km) {
+  if (UNITS.imperial) { const mi = km * 0.621371; return mi < 0.2 ? `${Math.round(km * 3280.84 / 10) * 10} ft` : `${+mi.toFixed(mi < 10 ? 1 : 0)} mi`; }
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${+km.toFixed(km < 10 ? 1 : 0)} km`;
+}
+/** A height for people: "2,400 m" or "7,874 ft". */
+export const humanHeight = m => UNITS.imperial ? `${Math.round(m * 3.28084).toLocaleString("en-US")} ft` : `${Math.round(m).toLocaleString("en-GB")} m`;
 
 /**
  * How trustworthy is a rating? Compares where/when it was made with the spot and the event.
@@ -421,7 +429,7 @@ export function terrainEventTime(lat, lon, eventUnix, angle, kind = "sunset") {
 export function terrainSummary(h, eventUnix, terrainUnix, kind = "sunset") {
   if (h.angle == null || !isFinite(h.angle)) return null;
   const mins = terrainUnix != null ? Math.round(Math.abs(eventUnix - terrainUnix) / 60) : null;
-  const dist = h.atKm < 1 ? `${Math.round(h.atKm * 1000)} m` : `${h.atKm} km`;
+  const dist = UNITS.imperial ? humanDist(h.atKm) : h.atKm < 1 ? `${Math.round(h.atKm * 1000)} m` : `${h.atKm} km`;
   if (h.angle < 0.5) return { level: "clear", text: `Open horizon towards the ${kind}.` };
   const caveat = " (From terrain data: trees and buildings aren't included.)";
   const when = mins ? ` The sun ${kind === "sunset" ? "disappears behind it about " + mins + " min before the official sunset" : "clears it about " + mins + " min after the official sunrise"}.` : "";

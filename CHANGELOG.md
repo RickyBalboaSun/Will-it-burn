@@ -9,6 +9,16 @@
 
 
 
+
+## 4.8 (Robin's backlog picks, 9 Nov)
+- Today: confidence is a small line under the verdict; the score key is gone; the rate banner sits under the score ("Tonight's sunset has gone. How was it? Rate it ↓").
+- Week strip: five days that fit without scrolling, with "Tap a day to plan ahead".
+- Miles and feet (and 12-hour time) on US phones; `?units=imperial` forces it.
+- Spots searches for viewpoints by itself when opened (25 km), and again when the radius changes; one-line description; button now "Search again".
+- Polish: logo in the header, stronger faint text on the orange sky, footer "How it works" removed (it's in More), shimmering placeholder while loading.
+- First-open welcome card.
+- Compass: arrow only, no "N".
+- Community opens on This week.
 ## 4.7.4
 - Community: new **Best ever** chip (Robin's idea): Great and On fire photos from any date, On fire first, newest first within each, up to 60 on the map.
 ## 4.7.3
