@@ -81,3 +81,11 @@ Suggested first batch: UI 1–6 and 9 plus the daily nudge, one upload.
 - On hold: 1 (one scale everywhere).
 - Plan ahead (17): already possible (Change place + tap a day); 4.8 adds the "Tap a day to plan ahead" hint. Bigger version (pick any place without changing your home place) still open.
 - Not yet decided: 12–16, 18–25 from the numbered list.
+
+## Friends + scoring: options (9 Nov, awaiting Robin's choice)
+Constraints: no card on Firebase (no Cloud Functions, so no instant push); Netlify zip uploads can't run server code; users are anonymous; ratings tune the model, so points must never depend on the band someone picks.
+- A. Becoming friends: A1 invite link, mutual (recommended) · A2 one-way follow · A3 groups ("crews") joined by one link.
+- B. Notifications: B1 in-app Friends feed + badge · B2 background check a few times a day (Android, installed; reuses the alerts service worker, reads approved photos over Firestore REST) · B3 instant push via FCM (needs Blaze card for Cloud Functions, or GitHub back to deploy a Netlify function).
+- C. Scoring: C1 personal stats + streaks · C2 badges · C3 chase points = forecast score of each approved photo · C4 weekly friends leaderboard · C5 reactions on friends' photos · C6 global leaderboard (not recommended yet: cheating, moderation).
+- Open decisions: do friends see photos before approval; is the name shown only to friends.
+- Build sketch (A1+B1+B2+C1–C4): users/{uid} {name}; invites/{code} {uid} (get-only); friendships/{uidA_uidB} created by the acceptor, rule checks the invite; friends feed = photos where uid in [...] and status == approved (one composite index); scores derived from approved photos only (only the admin can approve, so they can't be forged); optional Google sign-in linked to the anonymous account so friends and points survive a new phone. Robin: re-paste rules, tap one index link, optionally enable Google sign-in. One upload.
