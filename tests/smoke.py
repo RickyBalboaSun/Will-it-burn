@@ -412,7 +412,7 @@ def main():
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000)
         check(len(AQ_CALLS) > 0 and "aerosol_optical_depth" in AQ_CALLS[0], "haze forecast requested with the weather")
         check(not pg.is_hidden("#rateCard"), "rating card shown after sunset")
-        check(not pg.is_hidden("#rateBanner") and "Rate it" in pg.inner_text("#rateBanner"), "rate banner at the top after sunset")
+        check(not pg.is_hidden("#rateBanner") and "sunset has gone. How was it?" in pg.inner_text("#rateBanner"), "rate banner under the score after sunset: " + pg.inner_text("#rateBanner"))
         check("tonight" in pg.inner_text("#rateTitle").lower(), "asks about tonight")
         pg.click("#rateMore summary")
         pg.click("#rateSave"); check("first" in pg.inner_text("#rateMsg"), "must pick before saving")
