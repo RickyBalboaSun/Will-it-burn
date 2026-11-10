@@ -74,3 +74,4 @@ Suggested first batch: UI 1–6 and 9 plus the daily nudge, one upload.
 - Not in v1 (later): automatic image screening (needs Cloud Functions + Vision), hide-all switch, clustering when many pins, App Check against abuse.
 
 - Community speed later: once there are a few hundred photos, move thumbnails out of the photo records into their own collection so the map loads just the light records first (needs a rules re-paste). Consider defaulting the filter to "This week" while there are few photos.
+- Compass (Robin, 9 Nov): the "N" on the compass doesn't point north. Drop or fix it, and make it clearer that the arrow points to the sunset (e.g. label the arrow "Sunset" / "Sunrise" with the direction, "West-south-west").
