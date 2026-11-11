@@ -202,3 +202,27 @@ test("viewpoints: openness from horizon angle", () => {
   assert.equal(M.viewOpenness(6).level, "blocked");
   assert.equal(M.viewOpenness(null), null);
 });
+
+test("moon: phase and rise/set agree with SunCalc reference values", () => {
+  // 11 Nov 2026 00:00 UTC: just after new moon (SunCalc: 3.0% lit, waxing)
+  const p = M.moonPhase(Date.UTC(2026, 10, 11) / 1000);
+  assert.ok(Math.abs(p.lit - 0.0297) < 0.01 && p.waxing, JSON.stringify(p));
+  // a full moon sits roughly opposite the sun: rises around sunset
+  const full = M.moonPhase(Date.UTC(2026, 10, 24, 15) / 1000);
+  assert.ok(full.lit > 0.95, JSON.stringify(full));
+  const t = M.moonTimes(51.62, -3.94, Date.UTC(2026, 10, 24) / 1000, Date.UTC(2026, 10, 25) / 1000);
+  assert.ok(t.rise && t.set, JSON.stringify(t));
+});
+
+test("blue hour falls after sunset and before sunrise", () => {
+  const set = Date.UTC(2026, 10, 11, 0, 20) / 1000; // ~17:20 MST at Bryce
+  const b = M.blueHour(37.61, -112.17, set, "sunset");
+  assert.ok(b.start > set && b.end > b.start && b.end - set < 3600, JSON.stringify(b));
+});
+
+test("comfort advice", () => {
+  assert.equal(M.comfortAdvice(1, 5), "Wrap up warm: hat and gloves.");
+  assert.equal(M.comfortAdvice(6, 10), "Bring a warm jacket.");
+  assert.equal(M.comfortAdvice(14, 10), "Bring a jacket.");
+  assert.equal(M.comfortAdvice(20, 5), "Comfortable: no jacket needed.");
+});

@@ -98,6 +98,11 @@ def handle(route):
         AQ_CALLS.append(u.query)
         body = {"hourly": {"time": [t0 + h * 3600 for h in range(24 * 9)], "aerosol_optical_depth": [0.04] * (24 * 9)}}
         route.fulfill(status=200, content_type="application/json", headers={"Access-Control-Allow-Origin": "*"}, body=json.dumps(body)); return
+    if "/v1/forecast" in u.path and "apparent_temperature" in u.query:
+        # comfort at the viewpoint: 9°C, feels like 6°C, wind 22 km/h
+        t0 = int(NOW) - 2 * 86400; n = 24 * 10
+        body = {"hourly": {"time": [t0 + h * 3600 for h in range(n)], "temperature_2m": [9] * n, "apparent_temperature": [6] * n, "wind_speed_10m": [22] * n}}
+        route.fulfill(status=200, content_type="application/json", headers={"Access-Control-Allow-Origin": "*"}, body=json.dumps(body)); return
     if "bigdatacloud" in u.netloc:
         body = {"locality": "Bryce Canyon City", "city": "Bryce Canyon City", "principalSubdivision": "Utah [US-UT]", "countryName": "United States of America (the)", "countryCode": "US"}
     elif "geocoding" in u.netloc:
@@ -528,7 +533,7 @@ def main():
         check(fit[0] <= 560000 and fit[1] <= 30000 and fit[3] <= 240, f"even a hard-to-compress photo fits the database size cap: {fit}")
         pg.click(".tabbar button[data-go='community']"); pg.wait_for_selector(".cpin", timeout=10000); pg.wait_for_timeout(400)
         check(len(pg.query_selector_all(".cpin")) == 3 and len(pg.query_selector_all(".comm-card")) == 3, "map opens with sunsets and sunrises together (3 approved)")
-        check(pg.inner_text("#commStripTitle").startswith("This week"), "Community opens on This week: " + pg.inner_text("#commStripTitle"))
+        check(pg.inner_text("#commStripTitle").startswith("This month"), "Community opens on This month: " + pg.inner_text("#commStripTitle"))
         pg.wait_for_timeout(300)
         check(pg.eval_on_selector_all(".comm-card img", "els => els.every(i => i.src.startsWith('data:'))"), "every strip card shows its thumbnail")
         shot(pg, "24-community")
@@ -540,7 +545,7 @@ def main():
         check(len(pg.query_selector_all(".comm-card")) == 1, "on-fire filter")
         pg.click("#commFire"); pg.click("#commAll"); pg.wait_for_timeout(300)
         pg.evaluate("window.__FAKE_DB.push({ id: 'old1', uid: 'u-other', status: 'approved', kind: 'sunset', date: '2026-01-02', t: 1767400000, band: 'On fire', bandLo: 90, predicted: 70, place: 'Near Cape Town', lat: -33.9, lon: 18.4, createdAt: 1767400000000 })")
-        pg.click("#commBest"); pg.wait_for_timeout(400); pg.click("#commWeek"); pg.wait_for_timeout(200); pg.click("#commBest"); pg.wait_for_timeout(400)
+        pg.click("#commBest"); pg.wait_for_timeout(400); pg.click("#commMonth"); pg.wait_for_timeout(200); pg.click("#commBest"); pg.wait_for_timeout(400)
         best = pg.eval_on_selector_all(".comm-card .cc-place", "els => els.map(e => e.textContent)")
         check(len(best) >= 1 and "Best ever" in pg.inner_text("#commStripTitle"), f"best ever chip: {best}")
         pg.click("#commTonight"); pg.wait_for_timeout(300)
@@ -591,6 +596,14 @@ def main():
         shot(pg, "14-whatsnew")
         pg.click("#whatsNew .btn"); pg.reload(); pg.wait_for_selector("#result:not([hidden])"); pg.wait_for_timeout(1600)
         check(not pg.evaluate("document.getElementById('whatsNew').open"), "not shown again")
+        ctx.close()
+
+        print("Comfort, blue hour and moon")
+        ctx, pg = new_page()
+        pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000); pg.wait_for_timeout(600)
+        check("At sunset: 9°C, feels like 6°C · wind 22 km/h. Bring a warm jacket." in pg.inner_text("#comfort"), "comfort line: " + pg.inner_text("#comfort"))
+        check("Blue hour" in pg.inner_text("#times"), "blue hour row in When to watch")
+        check(pg.inner_text("#moonLine").startswith("Moon:") and "% lit" in pg.inner_text("#moonLine"), "moon line: " + pg.inner_text("#moonLine"))
         ctx.close()
 
         print("4.8 batch: welcome, hero, US units, Spots auto-search")

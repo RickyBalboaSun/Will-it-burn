@@ -28,6 +28,8 @@ export const VARS = [
   "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high",
   "visibility", "relative_humidity_2m", "precipitation_probability", "precipitation",
 ];
+/** Comfort at the viewpoint: fetched for the first location only (see comfortUrl). */
+export const COMFORT_VARS = ["temperature_2m", "apparent_temperature", "wind_speed_10m"];
 
 /* ---------- smooth scoring helpers (all return 0..1) ---------- */
 export const band = (x, lo0, lo1, hi1, hi0) => {
@@ -228,6 +230,85 @@ export function viewingTimes(lat, lon, eventUnix, kind = "sunset") {
   };
 }
 
+/** Blue hour: the sun 4° to 8° below the horizon (after sunset, or before sunrise). */
+export function blueHour(lat, lon, eventUnix, kind = "sunset") {
+  const H = 3 * 3600;
+  return kind === "sunset"
+    ? { start: crossingTime(lat, lon, eventUnix, eventUnix + H, -4), end: crossingTime(lat, lon, eventUnix, eventUnix + H, -8) }
+    : { start: crossingTime(lat, lon, eventUnix - H, eventUnix, -8), end: crossingTime(lat, lon, eventUnix - H, eventUnix, -4) };
+}
+
+/* ---------- moon (low-precision, about 0.3° and a couple of minutes) ---------- */
+const norm360 = x => ((x % 360) + 360) % 360;
+/** Moon's geocentric ecliptic longitude/latitude, distance (Earth radii), RA/Dec, and the sun's longitude. */
+export function moonPosition(unix) {
+  const d = unix / 86400 + 2440587.5 - 2451543.5;
+  const N = norm360(125.1228 - 0.0529538083 * d), i = 5.1454, w = norm360(318.0634 + 0.1643573223 * d);
+  const a = 60.2666, e = 0.0549, Mm = norm360(115.3654 + 13.0649929509 * d);
+  let E = Mm + deg(e * Math.sin(rad(Mm)) * (1 + e * Math.cos(rad(Mm))));
+  for (let k = 0; k < 5; k++) E = E - (E - deg(e * Math.sin(rad(E))) - Mm) / (1 - e * Math.cos(rad(E)));
+  const xv = a * (Math.cos(rad(E)) - e), yv = a * Math.sqrt(1 - e * e) * Math.sin(rad(E));
+  const v = deg(Math.atan2(yv, xv)); let r = Math.hypot(xv, yv);
+  const xh = r * (Math.cos(rad(N)) * Math.cos(rad(v + w)) - Math.sin(rad(N)) * Math.sin(rad(v + w)) * Math.cos(rad(i)));
+  const yh = r * (Math.sin(rad(N)) * Math.cos(rad(v + w)) + Math.cos(rad(N)) * Math.sin(rad(v + w)) * Math.cos(rad(i)));
+  const zh = r * Math.sin(rad(v + w)) * Math.sin(rad(i));
+  let lon = deg(Math.atan2(yh, xh)), lat = deg(Math.atan2(zh, Math.hypot(xh, yh)));
+  const Ms = norm360(356.047 + 0.9856002585 * d), ws = 282.9404 + 4.70935e-5 * d;
+  const Ls = norm360(ws + Ms), Lm = norm360(N + w + Mm), D = Lm - Ls, F = Lm - N;
+  const S = x => Math.sin(rad(x)), C = x => Math.cos(rad(x));
+  lon += -1.274 * S(Mm - 2 * D) + 0.658 * S(2 * D) - 0.186 * S(Ms) - 0.059 * S(2 * Mm - 2 * D) - 0.057 * S(Mm - 2 * D + Ms)
+    + 0.053 * S(Mm + 2 * D) + 0.046 * S(2 * D - Ms) + 0.041 * S(Mm - Ms) - 0.035 * S(D) - 0.031 * S(Mm + Ms)
+    - 0.015 * S(2 * F - 2 * D) + 0.011 * S(Mm - 4 * D);
+  lat += -0.173 * S(F - 2 * D) - 0.055 * S(Mm - F - 2 * D) - 0.046 * S(Mm + F - 2 * D) + 0.033 * S(F + 2 * D) + 0.017 * S(2 * Mm + F);
+  r += -0.58 * C(Mm - 2 * D) - 0.46 * C(2 * D);
+  const ecl = 23.4393 - 3.563e-7 * d;
+  const xe = C(lon) * C(lat), ye = S(lon) * C(lat) * C(ecl) - S(lat) * S(ecl), ze = S(lon) * C(lat) * S(ecl) + S(lat) * C(ecl);
+  const sunLon = norm360(Ls + 1.915 * S(Ms) + 0.02 * S(2 * Ms));
+  return { lon: norm360(lon), lat, r, ra: norm360(deg(Math.atan2(ye, xe))), dec: deg(Math.atan2(ze, Math.hypot(xe, ye))), sunLon };
+}
+/** Moon's altitude above the horizon in degrees, corrected for parallax (topocentric). */
+export function moonAltitude(lat, lon, unix) {
+  const m = moonPosition(unix);
+  const gmst = norm360(280.46061837 + 360.98564736629 * (unix / 86400 + 2440587.5 - 2451545));
+  const H = rad(gmst + lon - m.ra);
+  const alt = deg(Math.asin(Math.sin(rad(lat)) * Math.sin(rad(m.dec)) + Math.cos(rad(lat)) * Math.cos(rad(m.dec)) * Math.cos(H)));
+  return alt - deg(Math.asin(1 / m.r)) * Math.cos(rad(alt));
+}
+/** Moonrise and moonset between t0 and t1 (first of each), or null. Upper limb on the horizon, with refraction. */
+export function moonTimes(lat, lon, t0, t1) {
+  const h0 = -0.833, f = t => moonAltitude(lat, lon, t) - h0, out = { rise: null, set: null };
+  let ta = t0, fa = f(ta);
+  for (let tb = t0 + 600; tb <= t1 && (out.rise == null || out.set == null); tb += 600) {
+    const fb = f(tb);
+    if (fa * fb <= 0 && fa !== fb) {
+      let lo = ta, hi = tb, flo = fa;
+      for (let k = 0; k < 20; k++) { const tm = (lo + hi) / 2, fm = f(tm); if (flo * fm <= 0) hi = tm; else { lo = tm; flo = fm; } }
+      const t = Math.round((lo + hi) / 2);
+      if (fa < fb) { if (out.rise == null) out.rise = t; } else if (out.set == null) out.set = t;
+    }
+    ta = tb; fa = fb;
+  }
+  return out;
+}
+/** Phase: share lit (0-1), waxing or waning, and a name. */
+export function moonPhase(unix) {
+  const m = moonPosition(unix), elong = norm360(m.lon - m.sunLon);
+  const lit = (1 - Math.cos(rad(elong))) / 2, waxing = elong < 180;
+  const name = lit < 0.03 ? "New moon" : lit > 0.97 ? "Full moon"
+    : Math.abs(lit - 0.5) < 0.06 ? (waxing ? "First quarter" : "Last quarter")
+    : `${waxing ? "Waxing" : "Waning"} ${lit < 0.5 ? "crescent" : "gibbous"}`;
+  return { lit, waxing, name };
+}
+
+/** "Bring a jacket"-style advice from feels-like temperature (°C) and wind (km/h). */
+export function comfortAdvice(feels, wind) {
+  if (feels == null) return "";
+  if (feels < 3) return "Wrap up warm: hat and gloves.";
+  if (feels < 10 || wind >= 30) return "Bring a warm jacket.";
+  if (feels < 16 || wind >= 20) return "Bring a jacket.";
+  return feels > 30 ? "Still hot: take water." : "Comfortable: no jacket needed.";
+}
+
 /* ---------- multi-model scoring ---------- */
 export const CONFIDENCE_MODELS = WEATHER_MODELS;
 
@@ -264,6 +345,11 @@ export function aodAt(aq, t) {
   const h = aq && aq.hourly;
   if (!h || !h.time || !h.aerosol_optical_depth) return null;
   return valueAt({ hourly: h }, "aerosol_optical_depth", t);
+}
+/** Weather at the viewpoint itself (feels-like temperature, wind) for the comfort line. */
+export function comfortUrl(lat, lon) {
+  return "https://api.open-meteo.com/v1/forecast?latitude=" + lat.toFixed(4) + "&longitude=" + lon.toFixed(4) +
+    "&hourly=" + COMFORT_VARS.join(",") + "&timeformat=unixtime&past_days=1&forecast_days=8";
 }
 /** Air-quality request for one point: hourly aerosol optical depth, a day back and five ahead. */
 export function airQualityUrl(lat, lon) {

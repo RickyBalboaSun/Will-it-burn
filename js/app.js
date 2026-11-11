@@ -82,14 +82,16 @@ async function loadForecast(place, kind) {
     hourly: M.VARS.join(","), daily: "sunset,sunrise", models: M.WEATHER_MODELS.join(","),
     timezone: "auto", timeformat: "unixtime", forecast_days: "8",
   });
-  const [fc, aq] = await Promise.allSettled([
+  const [fc, aq, cf] = await Promise.allSettled([
     getJSON("https://api.open-meteo.com/v1/forecast?" + params),
     getJSON(M.airQualityUrl(place.lat, place.lon), 8000), // haze; optional
+    getJSON(M.comfortUrl(place.lat, place.lon), 8000),    // feels-like and wind; optional
   ]);
   if (fc.status !== "fulfilled") throw fc.reason;
   let data = fc.value;
   if (!Array.isArray(data)) data = [data];
-  return { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind, aq: aq.status === "fulfilled" ? aq.value : null };
+  return { locations: data, az, pts, offset: data[0].utc_offset_seconds || 0, kind, aq: aq.status === "fulfilled" ? aq.value : null,
+    comfort: cf.status === "fulfilled" ? cf.value : null };
 }
 
 const MODEL_NAMES = { ecmwf_ifs025: "European (ECMWF)", gfs_seamless: "American (GFS)", icon_seamless: "German (ICON)" };
@@ -242,11 +244,15 @@ function renderSelected() {
     const label = kind === "sunset" ? "Sun goes behind the hills" : "Sun clears the hills";
     rows.splice(kind === "sunset" ? 1 : 3, 0, [label, e.terrainT]);
   }
+  const bh = M.blueHour(state.place.lat, state.place.lon, e.t, kind);
+  if (bh.start && bh.end) rows.splice(kind === "sunset" ? rows.length : 0, 0, ["Blue hour", null, false, `${clock(bh.start, off)}–${clock(bh.end, off)}`]);
   $("times").innerHTML = rows.filter(r => r[1] != null || r[3]).map(([label, t, hl, text]) =>
     `<span class="${hl ? "hl" : ""}">${label}</span><span class="t ${hl ? "hl" : ""}">${text || clock(t, off)}</span>`).join("");
   $("timesNote").textContent = kind === "sunset"
     ? `Face ${M.compass(d.az)} (${Math.round(d.az)}°). Clouds often light up best after the sun has gone, so don't leave too early.`
     : `Face ${M.compass(d.az)} (${Math.round(d.az)}°). The strongest colour usually comes before the sun appears.`;
+
+  renderComfortMoon(e, d, off, kind);
 
   // details
   const names = { canvas: "Cloud canvas", path: "Clear horizon", local: "No low cloud", overcast: "Not overcast", rain: "Dry", clarity: "Clear air" };
@@ -256,6 +262,27 @@ function renderSelected() {
     + `<div class="raw">Overhead: mid cloud ${n(i.cMid)}%, high ${n(i.cHigh)}%, low ${n(i.low)}%, total ${n(i.total)}%<br>
        Towards the sun (${dist(75)}–${dist(250)} ${M.compass(d.az)}): low ${n(i.pathLow)}%, mid ${n(i.pathMid)}%<br>
        Rain ${n(i.rainP)}% · visibility ${i.visKm == null ? "?" : dist(i.visKm)} · humidity ${n(i.hum)}%</div>`;
+}
+
+/** Comfort at the viewpoint and the moon, under When to watch. */
+function renderComfortMoon(e, d, off, kind) {
+  const h = d.comfort && d.comfort.hourly, at = kind === "sunset" ? e.t + 15 * 60 : e.t - 15 * 60;
+  const val = k => (h ? M.valueAt({ hourly: h }, k, at) : null);
+  const temp = val("temperature_2m"), feels = val("apparent_temperature"), wind = val("wind_speed_10m");
+  if (temp == null) $("comfort").hidden = true;
+  else {
+    const t = c => M.UNITS.imperial ? `${Math.round(c * 9 / 5 + 32)}°F` : `${Math.round(c)}°C`;
+    const w = k => M.UNITS.imperial ? `${Math.round(k * 0.621371)} mph` : `${Math.round(k)} km/h`;
+    $("comfort").hidden = false;
+    $("comfort").innerHTML = `<b>At ${kind}:</b> ${t(temp)}${feels != null && Math.abs(feels - temp) >= 2 ? `, feels like ${t(feels)}` : ""}${wind != null ? ` · wind ${w(wind)}` : ""}. ${esc(M.comfortAdvice(feels ?? temp, wind ?? 0))}`;
+  }
+  const ph = M.moonPhase(e.t), mt = M.moonTimes(state.place.lat, state.place.lon, e.t - 12 * 3600, e.t + 12 * 3600);
+  const up = M.moonAltitude(state.place.lat, state.place.lon, e.t) > 0;
+  const bits = [`${ph.name}, ${Math.round(ph.lit * 100)}% lit`];
+  if (mt.rise) bits.push(`rises ${clock(mt.rise, off)}`);
+  if (mt.set) bits.push(`sets ${clock(mt.set, off)}`);
+  const near = mt.rise && Math.abs(mt.rise - e.t) < 75 * 60 && ph.lit > 0.6;
+  $("moonLine").innerHTML = `<b>Moon:</b> ${bits.join(" · ")}.${near ? " A bright moon rises close to the " + kind + ": look the other way too." : up && ph.lit > 0.25 ? ` It's up at ${kind}.` : ""}`;
 }
 
 function renderConfidence() {
