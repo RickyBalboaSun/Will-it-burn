@@ -10,6 +10,12 @@
 
 
 
+
+## 4.9 (Robin's picks, 11 Nov)
+- Friends and scoring: friend links (friends both ways) and follow links (they ask, you accept); a Friends view in Community with friends' photos (straight away, labelled until checked), fire reactions and a monthly leaderboard; Friends and Your score cards in More (nickname, requests, list, chase points, stats, 8 badges); friends alerts in the background (new photo, fire on my photos, monthly result) via a refreshed token and Firestore REST; optional Google sign-in to keep the account. New Firestore rules (users, invites, follows, requests, fires).
+- Daily nudge: optional notification with the day's score, from 8:00, 12:00 or 15:00.
+- When to watch: comfort at sunset (temperature, feels like, wind, jacket advice), blue hour (sun 4–8° below), moon phase and rise/set (checked against SunCalc to within a minute).
+- Community opens on This month (was This week). More: the Share Sunscore description removed.
 ## 4.8 (Robin's backlog picks, 9 Nov)
 - Today: confidence is a small line under the verdict; the score key is gone; the rate banner sits under the score ("Tonight's sunset has gone. How was it? Rate it ↓").
 - Week strip: five days that fit without scrolling, with "Tap a day to plan ahead".
