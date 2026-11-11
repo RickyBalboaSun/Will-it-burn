@@ -1,14 +1,17 @@
 rules_version = '2';
-// Sunscore Community: Firestore rules. Paste into Firebase console > Firestore Database > Rules.
+// Sunscore Community and Friends: Firestore rules. Paste into Firebase console > Firestore Database > Rules.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    // does the signed-in person follow `owner` (or are they friends)?
+    function follows(owner) { return signedIn() && exists(/databases/$(database)/documents/follows/$(request.auth.uid + "_" + owner)); }
+    function invite(code) { return get(/databases/$(database)/documents/invites/$(code)).data; }
 
     match /photos/{id} {
-      // anyone can see approved photos; owners and the admin can see their pending ones
+      // anyone can see approved photos; owners, their friends and the admin can also see pending ones
       allow read: if resource.data.status == "approved"
-                  || (signedIn() && (resource.data.uid == request.auth.uid || isAdmin()));
+                  || (signedIn() && (resource.data.uid == request.auth.uid || isAdmin() || follows(resource.data.uid)));
       // a new photo: your own, pending, rounded location, a known band, and nothing unexpected
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
@@ -21,18 +24,79 @@ service cloud.firestore {
       // only the admin approves or rejects
       allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "reviewedAt"]);
       allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+
+      // fire reactions: one per friend, on a friend's photo
+      match /fires/{who} {
+        function owner() { return get(/databases/$(database)/documents/photos/$(id)).data.uid; }
+        allow read: if signedIn() && (owner() == request.auth.uid || follows(owner()));
+        allow create: if signedIn() && who == request.auth.uid && owner() != request.auth.uid && follows(owner())
+                      && request.resource.data.keys().hasOnly(["at"]);
+        allow delete: if signedIn() && who == request.auth.uid;
+      }
     }
     // the full-size picture, kept apart so the map only downloads thumbnails
     match /images/{id} {
       function photo() { return get(/databases/$(database)/documents/photos/$(id)).data; }
       allow read: if photo().status == "approved"
-                  || (signedIn() && (resource.data.uid == request.auth.uid || isAdmin()));
+                  || (signedIn() && (resource.data.uid == request.auth.uid || isAdmin() || follows(resource.data.uid)));
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.keys().hasOnly(["uid", "data"])
         && request.resource.data.data is string && request.resource.data.data.size() < 900000;
       allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
+
+    // nicknames: only you and your friends (either direction) can read yours
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || follows(uid)
+                  || exists(/databases/$(database)/documents/follows/$(uid + "_" + request.auth.uid)));
+      allow write: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(["name", "codes", "at"])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 24;
+    }
+    // invite links: anyone holding the code can open it; nobody can list them
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.kind in ["friend", "follow"]
+        && request.resource.data.keys().hasOnly(["uid", "kind", "name", "at"]);
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name"]);
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    // follows/{follower_target}: the follower sees the target's photos and name
+    match /follows/{id} {
+      allow read: if signedIn() && (resource.data.follower == request.auth.uid || resource.data.target == request.auth.uid);
+      allow create: if signedIn()
+        && id == request.resource.data.follower + "_" + request.resource.data.target
+        && request.resource.data.keys().hasOnly(["follower", "target", "via", "at"])
+        && request.resource.data.follower != request.resource.data.target
+        && (
+          // I opened their friend link: I follow them...
+          (request.auth.uid == request.resource.data.follower && invite(request.resource.data.via).uid == request.resource.data.target
+            && invite(request.resource.data.via).kind == "friend")
+          // ...and they follow me back, through the same link
+          || (request.auth.uid == request.resource.data.target && invite(request.resource.data.via).uid == request.resource.data.follower
+            && invite(request.resource.data.via).kind == "friend")
+          // I accepted someone's follow request
+          || (request.auth.uid == request.resource.data.target
+            && exists(/databases/$(database)/documents/requests/$(request.resource.data.follower + "_" + request.resource.data.target)))
+        );
+      allow delete: if signedIn() && (resource.data.follower == request.auth.uid || resource.data.target == request.auth.uid);
+    }
+    // follow requests, waiting for the other person to accept
+    match /requests/{id} {
+      allow read: if signedIn() && (resource.data.follower == request.auth.uid || resource.data.target == request.auth.uid);
+      allow create: if signedIn()
+        && id == request.auth.uid + "_" + request.resource.data.target
+        && request.resource.data.follower == request.auth.uid
+        && request.resource.data.keys().hasOnly(["follower", "target", "name", "via", "at"])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 24
+        && invite(request.resource.data.via).uid == request.resource.data.target
+        && invite(request.resource.data.via).kind == "follow";
+      allow delete: if signedIn() && (resource.data.follower == request.auth.uid || resource.data.target == request.auth.uid);
+    }
+
     match /reports/{id} {
       allow create: if signedIn() && request.resource.data.by == request.auth.uid;
       allow read, delete: if isAdmin();

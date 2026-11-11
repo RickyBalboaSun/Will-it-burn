@@ -1243,22 +1243,22 @@ async function renderAlerts() {
     $("alertStatus").textContent = "Background alerts need Chrome on Android, with the app installed (menu → Install app). On other phones, use Add to calendar for promising evenings.";
   } else $("alertStatus").textContent = "";
 }
-$("alertOn").addEventListener("click", async () => {
-  const sup = alertSupport();
-  if (sup !== "ok") { await renderAlerts(); if (!$("alertStatus").textContent) $("alertStatus").textContent = "Alerts aren't supported on this phone or browser."; return; }
+/** Turn on background checks (notifications + periodic sync). Returns a message for the person, or null when it worked. */
+async function enableBackground(hours) {
+  if (alertSupport() !== "ok") return "Background alerts need Chrome on Android, with the app installed (menu → Install app).";
   const perm = await Notification.requestPermission();
-  if (perm !== "granted") { $("alertStatus").textContent = "Notifications are blocked. Allow them for this app in your phone's settings, then try again."; return; }
+  if (perm !== "granted") return "Notifications are blocked. Allow them for this app in your phone's settings, then try again.";
   try {
     const st = await navigator.permissions.query({ name: "periodic-background-sync" });
-    if (st.state !== "granted") {
-      $("alertStatus").textContent = "Install the app first: in Chrome, open the ⋮ menu and choose Install app (or Add to home screen). Then open it from your home screen and turn alerts on.";
-      return;
-    }
-    await swReg.periodicSync.register("wib-alert", { minInterval: ($("alertDaily").value ? 3 : 6) * 3600 * 1000 });
-  } catch {
-    $("alertStatus").textContent = "Your browser didn't allow background checks. Install the app from Chrome's menu, then try again.";
-    return;
-  }
+    if (st.state !== "granted") return "Install the app first: in Chrome, open the ⋮ menu and choose Install app (or Add to home screen). Then open it from your home screen and turn alerts on.";
+    await swReg.periodicSync.register("wib-alert", { minInterval: hours * 3600 * 1000 });
+  } catch { return "Your browser didn't allow background checks. Install the app from Chrome's menu, then try again."; }
+  return null;
+}
+$("alertOn").addEventListener("click", async () => {
+  if (alertSupport() !== "ok") { await renderAlerts(); if (!$("alertStatus").textContent) $("alertStatus").textContent = "Alerts aren't supported on this phone or browser."; return; }
+  const err = await enableBackground($("alertDaily").value ? 3 : 6);
+  if (err) { $("alertStatus").textContent = err; return; }
   const p = state.place, old = await alertConfig();
   await saveAlertConfig({
     enabled: true, kind: state.kind, threshold: Number($("alertThreshold").value),
@@ -1270,7 +1270,9 @@ $("alertOn").addEventListener("click", async () => {
   $("alertStatus").textContent += " Your phone decides exactly when to check, usually a few times a day.";
 });
 $("alertOff").addEventListener("click", async () => {
-  try { if (swReg && swReg.periodicSync) await swReg.periodicSync.unregister("wib-alert"); } catch { /* ignore */ }
+  let friendsOn = false;
+  try { const r = await (await caches.open("wib-config")).match(new URL("__friends-config", location.href).href); friendsOn = !!(r && (await r.json()).on); } catch { /* none */ }
+  try { if (swReg && swReg.periodicSync && !friendsOn) await swReg.periodicSync.unregister("wib-alert"); } catch { /* ignore */ }
   const cfg = await alertConfig(); if (cfg) { cfg.enabled = false; await saveAlertConfig(cfg); }
   await renderAlerts(); $("alertStatus").textContent = "Alerts are off.";
 });
@@ -1440,7 +1442,7 @@ function showTab(name) {
   window.scrollTo(0, 0);
   if (name === "spots") { renderMySpots(); autoScan(); }
   if (name === "log") { renderLog(); $("vpDiag").textContent = store.get("wib-vp-diag", "") ? "Last viewpoint lookup: " + store.get("wib-vp-diag", "") : ""; }
-  if (name === "more") { renderAlerts(); if (community && community.enabled) community.renderMine(); }
+  if (name === "more") { renderAlerts(); if (community && community.enabled) community.renderMore(); }
   if (name === "community" && community) community.renderTab();
   if (name === "log" && community && community.enabled) community.renderQueue();
 }
@@ -1485,6 +1487,7 @@ renderInstall();
 /* ---------- community ---------- */
 community = initCommunity({
   $, esc, store, state, M, run, showTab, loadLeaflet, TILE_URL, TILE_ATTR, directionsUrl, reverseName, bandFor, BANDS,
+  logAll: () => logAll(), enableBackground: hours => enableBackground(hours),
   currentEvent() {
     const d = state.data; if (!d || state.past) return null;
     const e = recentEvent(d); if (!e) return null;
@@ -1516,7 +1519,7 @@ if ("serviceWorker" in navigator) {
 $("modelVersion").textContent = M.MODEL_VERSION;
 setTimeout(shareBacklog, 4000);
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.8";
+const RELEASE = "4.9";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

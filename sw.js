@@ -2,10 +2,10 @@
 // Browsers that can't run module service workers get sw-classic.js (offline only).
 import * as M from "./js/model.js";
 
-const CACHE = "wib-shell-v22";
+const CACHE = "wib-shell-v23";
 const CONFIG_CACHE = "wib-config";
 const CONFIG_URL = "./__alert-config";
-const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/model.js", "js/visuals.js", "js/exif.js", "js/community.js", "js/community-backend.js", "js/firebase-config.js", "manifest.webmanifest",
+const SHELL = ["./", "index.html", "css/app.css", "js/app.js", "js/model.js", "js/visuals.js", "js/exif.js", "js/community.js", "js/community-backend.js", "js/friends.js", "js/firebase-config.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/apple-touch-icon.png", "icons/favicon-32.png"];
 
 self.addEventListener("install", e => {
@@ -17,7 +17,7 @@ self.addEventListener("activate", e => {
 });
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== self.location.origin || url.pathname.endsWith("__alert-config")) return;
+  if (e.request.method !== "GET" || url.origin !== self.location.origin || url.pathname.endsWith("__alert-config") || url.pathname.endsWith("__friends-config")) return;
   e.respondWith(
     fetch(e.request).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
@@ -81,18 +81,108 @@ async function checkAlert({ force = false } = {}) {
   return { status: go ? "notified" : "checked", score: e.score };
 }
 
+/* ---------- friends (no Firebase SDK here: a refreshed sign-in token and Firestore's REST API) ---------- */
+const FRIENDS_URL = "./__friends-config";
+async function readFriends() { const r = await (await caches.open(CONFIG_CACHE)).match(FRIENDS_URL); return r ? r.json() : null; }
+async function writeFriends(cfg) {
+  await (await caches.open(CONFIG_CACHE)).put(FRIENDS_URL, new Response(JSON.stringify(cfg), { headers: { "Content-Type": "application/json" } }));
+}
+/** Firestore REST value → plain JS. */
+function plain(v) {
+  if (!v) return null;
+  if ("stringValue" in v) return v.stringValue;
+  if ("integerValue" in v) return Number(v.integerValue);
+  if ("doubleValue" in v) return v.doubleValue;
+  if ("timestampValue" in v) return Date.parse(v.timestampValue);
+  if ("booleanValue" in v) return v.booleanValue;
+  return null;
+}
+const docOf = d => { const o = { id: d.name.split("/").pop() }; for (const [k, v] of Object.entries(d.fields || {})) o[k] = plain(v); return o; };
+const monthOf = ms => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+
+async function checkFriends() {
+  const cfg = await readFriends();
+  if (!cfg || !cfg.on || !cfg.refreshToken) return { status: "off" };
+  const tokenBase = cfg.testBase ? cfg.testBase + "token" : "https://securetoken.googleapis.com/v1/token";
+  const t = await fetch(`${tokenBase}?key=${cfg.apiKey}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(cfg.refreshToken)}` });
+  if (!t.ok) return { status: "auth-failed" };
+  const tok = await t.json();
+  if (tok.refresh_token) cfg.refreshToken = tok.refresh_token;
+  const fs = (cfg.testBase ? cfg.testBase + "fs/" : "https://firestore.googleapis.com/v1/") + `projects/${cfg.projectId}/databases/(default)/documents`;
+  const auth = { Authorization: `Bearer ${tok.id_token}`, "Content-Type": "application/json" };
+  const photosOf = async uid => {
+    const r = await fetch(`${fs}:runQuery`, { method: "POST", headers: auth, body: JSON.stringify({ structuredQuery: {
+      select: { fields: ["uid", "status", "kind", "band", "place", "predicted", "createdAt"].map(f => ({ fieldPath: f })) }, // no thumbnails
+      from: [{ collectionId: "photos" }], where: { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } } }, limit: 60 } }) });
+    if (!r.ok) return [];
+    return (await r.json()).filter(x => x.document).map(x => docOf(x.document)).filter(p => p.status !== "rejected");
+  };
+  const name = uid => (cfg.names && cfg.names[uid]) || "A friend";
+  const notes = [];
+  const all = {};
+  for (const u of cfg.following || []) all[u] = await photosOf(u);
+
+  if (cfg.photos) {
+    const fresh = Object.entries(all).flatMap(([u, list]) => list.filter(p => p.createdAt > (cfg.seen || 0)).map(p => ({ ...p, u })));
+    if (fresh.length) {
+      fresh.sort((a, b) => b.createdAt - a.createdAt);
+      const p = fresh[0], who = [...new Set(fresh.map(x => name(x.u)))];
+      notes.push(fresh.length === 1
+        ? [`${name(p.u)} shared a ${p.kind}`, `${p.place || "Somewhere"} · ${p.band}.${p.predicted != null ? ` Sunscore said ${p.predicted}.` : ""}`]
+        : [`${fresh.length} new skies from friends`, `${who.slice(0, 3).join(", ")}${who.length > 3 ? " and more" : ""}. Tap to see them.`]);
+      cfg.seen = fresh[0].createdAt;
+    }
+  }
+  let mine = null;
+  if (cfg.fires || cfg.monthly) mine = await photosOf(cfg.uid);
+  if (cfg.fires && mine) {
+    const recent = mine.filter(p => p.createdAt > Date.now() - 30 * 86400000).slice(0, 10);
+    for (const p of recent) {
+      const r = await fetch(`${fs}/photos/${p.id}/fires`, { headers: auth });
+      if (!r.ok) continue;
+      const who = ((await r.json()).documents || []).map(d => d.name.split("/").pop());
+      const before = cfg.fireCounts[p.id] || 0;
+      if (who.length > before) notes.push([`${name(who[who.length - 1])} sent fire on your ${p.kind}`, `${p.place || "Your photo"} has ${who.length} now.`]);
+      cfg.fireCounts[p.id] = who.length;
+    }
+  }
+  if (cfg.monthly && mine) {
+    const now = new Date(), last = monthOf(new Date(now.getFullYear(), now.getMonth() - 1, 15).getTime());
+    if (now.getDate() <= 3 && cfg.monthlyFor !== last) {
+      const pts = list => list.filter(p => p.status === "approved" && p.predicted != null && monthOf(p.createdAt) === last).reduce((s, p) => s + Math.round(p.predicted), 0);
+      const rows = [{ n: "You", p: pts(mine), me: true }, ...Object.entries(all).map(([u, l]) => ({ n: name(u), p: pts(l) }))].sort((a, b) => b.p - a.p);
+      const monthName = new Date(now.getFullYear(), now.getMonth() - 1, 15).toLocaleString("en-GB", { month: "long" });
+      if (rows.length > 1 && rows[0].p > 0) {
+        const you = rows.find(r => r.me);
+        notes.push(rows[0].me ? [`You won ${monthName}!`, `${you.p} points. Well caught.`]
+          : [`${rows[0].n} won ${monthName}`, `${rows[0].p} points. You scored ${you.p}.`]);
+      }
+      cfg.monthlyFor = last;
+    }
+  }
+  for (const [title, body] of notes) {
+    await self.registration.showNotification(title, { body, icon: "icons/icon-192.png", badge: "icons/favicon-32.png",
+      tag: "wib-friends-" + title, data: { url: self.registration.scope + "?tab=friends" } });
+  }
+  await writeFriends(cfg);
+  return { status: "checked", sent: notes.length };
+}
+
 self.addEventListener("periodicsync", e => {
-  if (e.tag === "wib-alert") e.waitUntil(checkAlert().catch(() => {}));
+  if (e.tag === "wib-alert") e.waitUntil(Promise.allSettled([checkAlert(), checkFriends()]));
 });
 self.addEventListener("message", e => {
   const reply = v => e.ports[0] && e.ports[0].postMessage(v);
   if (e.data && e.data.type === "check-now") e.waitUntil(checkAlert({ force: !!e.data.force }).then(reply, err => reply({ status: "error", error: String(err) })));
   if (e.data && e.data.type === "ping") reply({ ok: true, module: true });
+  if (e.data && e.data.type === "friends-now") e.waitUntil(checkFriends().then(reply, err => reply({ status: "error", error: String(err) })));
 });
 self.addEventListener("notificationclick", e => {
   e.notification.close();
   e.waitUntil(self.clients.matchAll({ type: "window" }).then(list => {
+    const want = (e.notification.data && e.notification.data.url) || self.registration.scope;
     const open = list.find(c => c.url.startsWith(self.registration.scope));
-    return open ? open.focus() : self.clients.openWindow(self.registration.scope);
+    return open ? open.navigate(want).then(c => (c || open).focus()).catch(() => open.focus()) : self.clients.openWindow(want);
   }));
 });

@@ -2,6 +2,7 @@
 // Hidden unless js/firebase-config.js has a config (or a test backend is injected).
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 import { createBackend } from "./community-backend.js";
+import { initFriends } from "./friends.js";
 
 const DAY = 86400000;
 const DAILY_LIMIT = 5;
@@ -40,7 +41,7 @@ export function initCommunity(ctx) {
   let backend = null, backendP = null, feedCache = null, map = null, layer = null;
   let kind = "all", period = "month", fireOnly = false, composerEvent = null, composerFile = null;
 
-  if (!enabled()) return { enabled: false, offerAfterRating() {}, renderMine() {}, renderQueue() {}, renderTab() {}, warm() {} };
+  if (!enabled()) return { enabled: false, offerAfterRating() {}, renderMine() {}, renderMore() {}, renderQueue() {}, renderTab() {}, warm() {} };
   $("tabCommunityBtn").hidden = false;
 
   async function ensure() {
@@ -66,7 +67,13 @@ export function initCommunity(ctx) {
     return period === "best" ? out.sort((a, b) => BAND_RANK[b.band] - BAND_RANK[a.band] || b.createdAt - a.createdAt).slice(0, 60) : out;
   }
   const kindWord = { all: "skies", sunset: "sunsets", sunrise: "sunrises" };
+  function showFriendsView(on) {
+    $("friendsPanel").hidden = !on;
+    for (const id of ["commMapWrap", "commStatus", "commStripHead", "commStrip"]) $(id).hidden = on;
+  }
   async function renderTab(force = false) {
+    showFriendsView(period === "friends");
+    if (period === "friends") return friends.renderFeed();
     say("commStatus", feedCache && !force ? "" : "Loading skies…");
     const mapP = baseMap();                       // map and tiles start straight away, alongside the photos
     let b;
@@ -122,6 +129,7 @@ export function initCommunity(ctx) {
     if (c && (c.saveData || /2g/.test(c.effectiveType || ""))) return;
     ctx.loadLeaflet().catch(() => {});
     ensure().then(b => b.feed()).then(f => { if (!feedCache) feedCache = f; }).catch(() => {});
+    friends.refreshDot().catch(() => {});
   }
   $("commStrip").addEventListener("click", ev => {
     const c = ev.target.closest(".comm-card"); if (!c || !feedCache) return;
@@ -131,7 +139,7 @@ export function initCommunity(ctx) {
   for (const [id, k] of KINDS) {
     $(id).addEventListener("click", () => { kind = k; for (const [i2, k2] of KINDS) $(i2).classList.toggle("on", k2 === k); renderTab(); });
   }
-  const PERIODS = [["commTonight", "tonight"], ["commMonth", "month"], ["commBest", "best"]];
+  const PERIODS = [["commFriends", "friends"], ["commTonight", "tonight"], ["commMonth", "month"], ["commBest", "best"]];
   for (const [id, p] of PERIODS) {
     $(id).addEventListener("click", () => { period = p; for (const [i2, p2] of PERIODS) $(i2).classList.toggle("on", p2 === p); renderTab(); });
   }
@@ -140,11 +148,11 @@ export function initCommunity(ctx) {
 
   /* ---------- one photo ---------- */
   let viewing = null;
-  async function openPhoto(p) {
+  async function openPhoto(p, friendName = null) {
     viewing = p;
     $("pvImg").removeAttribute("src");
     $("pvBand").innerHTML = `<i style="background:${BAND_COLOURS[p.band] || "#ffa552"}"></i>Rated ${esc(p.band)}`;
-    $("pvPlace").textContent = p.place || "Somewhere";
+    $("pvPlace").textContent = friendName ? `${friendName} · ${p.place || "Somewhere"}` : p.place || "Somewhere";
     $("pvWhen").textContent = `${p.kind === "sunset" ? "Sunset" : "Sunrise"} · ${dateText(p)} · ${ago(p.createdAt)}`;
     $("pvForecast").innerHTML = p.predicted != null ? `Sunscore said <b>${p.predicted}</b> · ${esc(ctx.bandFor(p.predicted).name)}` : "–";
     $("pvGo").href = ctx.directionsUrl(p);
@@ -290,5 +298,19 @@ export function initCommunity(ctx) {
     };
   }
 
-  return { enabled: true, offerAfterRating, renderMine, renderQueue, renderTab, warm };
+  const friendsCtx = {
+    $, esc, store, ensure, openPhoto, ago, showTab: ctx.showTab, logAll: ctx.logAll, enableBackground: ctx.enableBackground,
+    bandColour: band => BAND_COLOURS[band] || "#ffa552",
+    selectFriends() { period = "friends"; for (const [i2, p2] of PERIODS) $(i2).classList.toggle("on", p2 === "friends"); renderTab(); },
+  };
+  const friends = initFriends(friendsCtx);
+  setTimeout(() => {
+    if (new URLSearchParams(location.search).get("tab") === "friends") {   // from a friends notification
+      history.replaceState(null, "", location.pathname); ctx.showTab("community"); friendsCtx.selectFriends();
+    }
+    friends.handleInvite().catch(() => {});
+  }, 300);
+  function renderMore() { renderMine(); friends.renderCard().catch(() => {}); friends.renderScore().catch(() => {}); }
+
+  return { enabled: true, offerAfterRating, renderMine, renderMore, renderQueue, renderTab, warm };
 }

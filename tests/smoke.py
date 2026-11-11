@@ -78,6 +78,42 @@ FAKE_BACKEND = """
 })();
 """
 
+FRIENDS_FAKE = """
+(() => {
+  const inner = window.__SUNSCORE_FAKE_BACKEND, now = Date.now(), t = Math.floor(now / 1000) - 3600;
+  const F = window.__FRIENDS = {
+    users: { "u-maya": "Maya", "u-priya": "Priya" }, me: "",
+    invites: { CODEMAYA: { uid: "u-maya", kind: "friend", name: "Maya" }, CODESAM: { uid: "u-sam", kind: "follow", name: "Sam" } },
+    follows: [], requests: [{ id: "u-priya_u-me", follower: "u-priya", target: "u-me", name: "Priya" }], fires: { m1: ["u-tom"] }, myCodes: {},
+  };
+  window.__SUNSCORE_FAKE_BACKEND = async () => {
+    const b = await inner(), db = window.__FAKE_DB;
+    db.push({ id: "m1", uid: "u-maya", status: "approved", kind: "sunset", date: "2026-11-08", t, band: "Great", bandLo: 75, predicted: 68, place: "Near Swansea", lat: 51.62, lon: -3.94, createdAt: now - 600000 });
+    db.push({ id: "m2", uid: "u-maya", status: "pending", kind: "sunrise", date: "2026-11-08", t, band: "Good", bandLo: 50, predicted: 55, place: "Near Mumbles", lat: 51.57, lon: -4.0, createdAt: now - 300000 });
+    db.push({ id: "me1", uid: "u-me", status: "approved", kind: "sunrise", date: "2026-11-08", t, band: "On fire", bandLo: 90, predicted: 91, place: "Near Bryce", lat: 37.6, lon: -112.2, createdAt: now - 900000 });
+    return { ...b,
+      async profile() { return { name: F.me, codes: F.myCodes }; },
+      async setName(n) { F.me = n; },
+      async inviteCode(kind) { return F.myCodes[kind] || (F.myCodes[kind] = "MY" + kind.toUpperCase()); },
+      async invite(code) { const i = F.invites[code]; return i ? { code, ...i } : null; },
+      async acceptFriend(inv) { F.follows.push({ follower: "u-me", target: inv.uid }, { follower: inv.uid, target: "u-me" }); },
+      async requestFollow(inv, name) { F.sent = { target: inv.uid, name }; },
+      async requests() { return F.requests.slice(); },
+      async approve(r) { F.follows.push({ follower: r.follower, target: "u-me" }); F.requests = F.requests.filter(x => x.id !== r.id); },
+      async decline(r) { F.requests = F.requests.filter(x => x.id !== r.id); },
+      async links() { return { following: F.follows.filter(f => f.follower === "u-me").map(f => f.target), followers: F.follows.filter(f => f.target === "u-me").map(f => f.follower) }; },
+      async names(uids) { return Object.fromEntries(uids.map(u => [u, F.users[u] || ""])); },
+      async unfriend(o) { F.follows = F.follows.filter(f => !(f.follower === o || f.target === o)); },
+      async photosOf(u) { return db.filter(p => p.uid === u && p.status !== "rejected").sort((a, b) => b.createdAt - a.createdAt); },
+      async fires(id) { return (F.fires[id] || []).slice(); },
+      async fire(id, on) { const l = F.fires[id] = F.fires[id] || []; if (on) l.push("u-me"); else l.splice(l.indexOf("u-me"), 1); },
+      async linkGoogle() { return "linked"; }, googleLinked() { return false; },
+      async workerCreds() { return { uid: "u-me", apiKey: "k", projectId: "p", refreshToken: "r1" }; },
+    };
+  };
+})();
+"""
+
 AQ_CALLS = []
 NOMINATIM = [
     {"lat": "37.05", "lon": "-110.18", "name": "John Ford's Point", "type": "viewpoint", "category": "tourism"},
@@ -112,9 +148,31 @@ def handle(route):
     route.fulfill(status=200, content_type="application/json", headers={"Access-Control-Allow-Origin": "*"}, body=json.dumps(body))
 
 
+def _fs_doc(name, **f):
+    conv = lambda v: {"integerValue": str(v)} if isinstance(v, int) else {"stringValue": v}
+    return {"name": name, "fields": {k: ({"timestampValue": v[1:]} if isinstance(v, str) and v.startswith("@") else conv(v)) for k, v in f.items()}}
+
+
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
+    def _json(self, obj):
+        body = json.dumps(obj).encode()
+        self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers()
+        self.wfile.write(body)
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0); data = self.rfile.read(n).decode()
+        if self.path.startswith("/mock/token"):
+            return self._json({"id_token": "idtok", "refresh_token": "r2"})
+        if self.path.endswith(":runQuery"):
+            uid = json.loads(data)["structuredQuery"]["where"]["fieldFilter"]["value"]["stringValue"]
+            base = "projects/p/databases/(default)/documents/photos/"
+            docs = {"u-maya": [_fs_doc(base + "m9", uid="u-maya", status="pending", kind="sunset", band="Great", place="Near Swansea", predicted=68, createdAt="@2026-11-11T01:00:00Z")],
+                    "u-me": [_fs_doc(base + "me1", uid="u-me", status="approved", kind="sunrise", band="On fire", place="Near Bryce", predicted=91, createdAt="@" + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))]}.get(uid, [])
+            return self._json([{"document": d} for d in docs] or [{"readTime": "x"}])
+        self.send_response(404); self.end_headers()
     def do_GET(self):
+        if self.path.startswith("/mock/fs/") and self.path.endswith("/fires"):
+            return self._json({"documents": [{"name": "x/fires/u-maya"}]})
         if self.path.startswith("/mock/forecast"):
             body = json.dumps(forecast_body(parse_qs(urlparse(self.path).query))).encode()
             self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers()
@@ -407,7 +465,20 @@ def main():
         notes = pg.evaluate("navigator.serviceWorker.ready.then(r => r.getNotifications()).then(n => n.map(x => x.title + ' | ' + x.body))")
         check(len(notes) == 1 and "/100" in notes[0], "notification shown: " + (notes[0] if notes else "none"))
         pg.eval_on_selector("#alertCard", "e => e.scrollIntoView()"); shot(pg, "11-alerts")
+        # friends: the background worker checks with a refreshed token and Firestore's REST API
+        pg.evaluate("""async (b) => { const c = await caches.open('wib-config'); const url = new URL('__friends-config', (await navigator.serviceWorker.ready).scope).href;
+          await c.put(url, new Response(JSON.stringify({ on: true, photos: true, fires: true, monthly: false, uid: 'u-me', apiKey: 'k', projectId: 'p', refreshToken: 'r1',
+            following: ['u-maya'], names: { 'u-maya': 'Maya' }, seen: 0, fireCounts: {}, testBase: b }))); }""", base + "mock/")
+        r = pg.evaluate("navigator.serviceWorker.ready.then(reg => new Promise(res => { const ch = new MessageChannel(); ch.port1.onmessage = e => res(e.data); reg.active.postMessage({type:'friends-now'}, [ch.port2]); }))")
+        notes = pg.evaluate("navigator.serviceWorker.ready.then(r => r.getNotifications()).then(n => n.map(x => x.title + ' | ' + x.body))")
+        check(r.get("sent") == 2 and any("Maya shared a sunset" in n for n in notes) and any("Maya sent fire on your sunrise" in n for n in notes), f"friends background check: {r} {notes}")
+        r2 = pg.evaluate("navigator.serviceWorker.ready.then(reg => new Promise(res => { const ch = new MessageChannel(); ch.port1.onmessage = e => res(e.data); reg.active.postMessage({type:'friends-now'}, [ch.port2]); }))")
+        check(r2.get("sent") == 0, f"no repeat notifications: {r2}")
         pg.click("#alertOff"); pg.wait_for_timeout(500)
+        tags = pg.evaluate("navigator.serviceWorker.ready.then(r => r.periodicSync.getTags())")
+        check("wib-alert" in tags, "forecast alerts off: background check kept for friends alerts")
+        pg.evaluate("""async () => { const c = await caches.open('wib-config'); await c.delete(new URL('__friends-config', (await navigator.serviceWorker.ready).scope).href); }""")
+        pg.click("#alertOn"); pg.wait_for_timeout(600); pg.click("#alertOff"); pg.wait_for_timeout(500)
         tags = pg.evaluate("navigator.serviceWorker.ready.then(r => r.periodicSync.getTags())")
         check("wib-alert" not in tags and "off" in pg.inner_text("#alertStatus"), "alerts turned off")
 
@@ -497,6 +568,48 @@ def main():
         open_dev(pg)
         pg.fill("#pastDate", "2099-01-01"); pg.click("#pastGo")
         check("earlier" in pg.inner_text("#pastStatus"), "future date rejected")
+        ctx.close()
+
+        print("Friends and scoring (fake Firebase)")
+        ctx, pg = new_page()
+        ctx.grant_permissions(["clipboard-read", "clipboard-write"])
+        pg.add_init_script(FAKE_BACKEND); pg.add_init_script(FRIENDS_FAKE)
+        pg.goto(base + "?f=CODEMAYA"); pg.wait_for_selector("#inviteDlg[open]", timeout=10000)
+        check("Maya invited you to be friends" in pg.inner_text("#invTitle"), "friend link opens the invite: " + pg.inner_text("#invTitle"))
+        check("f=" not in pg.url, "invite code removed from the address bar")
+        pg.click("#invAccept"); check("nickname" in pg.inner_text("#invMsg"), "asks for a nickname first")
+        pg.fill("#invNick", "Robin"); pg.click("#invAccept")
+        pg.wait_for_function("document.getElementById('invMsg').textContent.includes('now friends')", timeout=5000)
+        check(pg.evaluate("window.__FRIENDS.follows.length") == 2 and pg.evaluate("window.__FRIENDS.me") == "Robin", "accepting makes you friends both ways and saves your nickname")
+        pg.wait_for_selector(".ff-card", timeout=8000); pg.wait_for_timeout(500)
+        check(not pg.is_hidden("#friendsPanel") and pg.is_hidden("#commMapWrap"), "lands on the Friends view in Community")
+        cards = pg.eval_on_selector_all(".ff-card", "els => els.map(e => e.innerText)")
+        check(len(cards) == 2 and "Maya" in cards[0] and "Friends only until it is checked" in cards[0], "friend's photos, newest first, pending ones labelled: " + str(cards[:1]))
+        fire = pg.query_selector_all(".fire")[1]
+        check(fire.inner_text().strip() == "1", "fire count shown: " + fire.inner_text())
+        fire.click(); pg.wait_for_timeout(300)
+        check(fire.inner_text().strip() == "2" and pg.evaluate("window.__FRIENDS.fires.m1.includes('u-me')"), "send fire")
+        lb = pg.eval_on_selector_all(".lb-row", "els => els.map(e => e.innerText.replace(/\\s+/g, ' '))")
+        check(len(lb) == 2 and "You" in lb[0] and lb[0].strip().endswith("91") and lb[1].strip().endswith("68"), "monthly leaderboard counts checked photos only: " + str(lb))
+        pg.click(".tabbar button[data-go='more']"); pg.wait_for_timeout(1500)
+        pg.wait_for_selector("#friendList .fr-row", timeout=8000); pg.wait_for_timeout(400)
+        check("Maya" in pg.inner_text("#friendList") and "Friends" in pg.inner_text("#friendList"), "friend listed in More")
+        check("Priya" in pg.inner_text("#reqList"), "follow request shown")
+        pg.click("#reqList [data-acc]"); pg.wait_for_timeout(600)
+        check("Priya" in pg.inner_text("#friendList") and "Follows you" in pg.inner_text("#friendList"), "accept a follow request")
+        pg.click("#inviteFriend"); pg.wait_for_timeout(400)
+        clip = pg.evaluate("navigator.clipboard.readText()")
+        check("?f=MYFRIEND" in clip, "invite link copied: " + clip)
+        check(pg.inner_text("#ptsTotal") == "91" and "91 this month" in pg.inner_text("#ptsMonth"), "your chase points")
+        check("BADGES · 3 OF 8" in pg.inner_text("#badgeTitle").upper() and pg.evaluate("document.querySelectorAll('.badge.got').length") >= 3, "badges earned: " + pg.inner_text("#badgeTitle"))
+        shot(pg, "20-friends-more", True)
+        ctx.close()
+        ctx, pg = new_page()
+        pg.add_init_script(FAKE_BACKEND); pg.add_init_script(FRIENDS_FAKE)
+        pg.goto(base + "?follow=CODESAM"); pg.wait_for_selector("#inviteDlg[open]", timeout=10000)
+        check("Follow Sam" in pg.inner_text("#invTitle") and pg.inner_text("#invAccept") == "Ask to follow", "follow link asks to follow")
+        pg.fill("#invNick", "Robin"); pg.click("#invAccept"); pg.wait_for_timeout(500)
+        check(pg.evaluate("window.__FRIENDS.sent && window.__FRIENDS.sent.target") == "u-sam", "follow request sent")
         ctx.close()
 
         print("Community (fake Firebase)")
