@@ -718,6 +718,7 @@ def main():
         pg.goto(base); pg.wait_for_selector("#result:not([hidden])", timeout=10000); pg.wait_for_timeout(600)
         check("At sunset: 9°C, feels like 6°C · wind 22 km/h. Bring a warm jacket." in pg.inner_text("#comfort"), "comfort line: " + pg.inner_text("#comfort"))
         check("Blue hour" in pg.inner_text("#times"), "blue hour row in When to watch")
+        check("undefined" not in pg.text_content("#detailBody"), "every factor in Why this score has a name")
         check(pg.inner_text("#moonLine").startswith("Moon:") and "% lit" in pg.inner_text("#moonLine"), "moon line: " + pg.inner_text("#moonLine"))
         ctx.close()
 

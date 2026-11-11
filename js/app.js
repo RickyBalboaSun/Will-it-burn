@@ -255,7 +255,7 @@ function renderSelected() {
   renderComfortMoon(e, d, off, kind);
 
   // details
-  const names = { canvas: "Cloud canvas", path: "Clear horizon", local: "No low cloud", overcast: "Not overcast", rain: "Dry", clarity: "Clear air" };
+  const names = { canvas: "Cloud canvas", path: "Clear horizon", local: "No low cloud", overcast: "Not overcast", rain: "Dry", clarity: "Clear air", air: "Clean, dry air" };
   const i = e.inputs, n = x => x == null ? "–" : Math.round(x);
   $("detailBody").innerHTML = Object.entries(e.factors).map(([k, val]) => `
     <div class="f-row"><span>${names[k]}</span><div class="f-bar"><div class="f-fill" style="width:${Math.round(val * 100)}%"></div></div><span class="f-num">${Math.round(val * 100)}%</span></div>`).join("")
