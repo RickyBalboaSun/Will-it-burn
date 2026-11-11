@@ -1233,8 +1233,12 @@ async function renderAlerts() {
   $("alertBadge").textContent = on ? "(on)" : "";
   if (on) {
     $("alertThreshold").value = String(cfg.threshold);
+    $("alertDaily").value = cfg.daily == null ? "" : String(cfg.daily);
     const last = cfg.lastCheck ? ` Last background check: ${ago(Date.now() - cfg.lastCheck.at)} (score ${cfg.lastCheck.score}).` : "";
-    $("alertStatus").textContent = `On: ${cfg.kind}s at ${cfg.place.name} scoring ${cfg.threshold}+.${last}`;
+    const parts = [];
+    if (cfg.threshold <= 100) parts.push(`${cfg.kind}s scoring ${cfg.threshold}+`);
+    if (cfg.daily != null) parts.push(`a daily nudge from ${cfg.daily}:00`);
+    $("alertStatus").textContent = `On: ${parts.join(" and ") || "nothing selected"} at ${cfg.place.name}.${last}`;
   } else if (alertSupport() !== "ok" && swReg) {
     $("alertStatus").textContent = "Background alerts need Chrome on Android, with the app installed (menu → Install app). On other phones, use Add to calendar for promising evenings.";
   } else $("alertStatus").textContent = "";
@@ -1250,7 +1254,7 @@ $("alertOn").addEventListener("click", async () => {
       $("alertStatus").textContent = "Install the app first: in Chrome, open the ⋮ menu and choose Install app (or Add to home screen). Then open it from your home screen and turn alerts on.";
       return;
     }
-    await swReg.periodicSync.register("wib-alert", { minInterval: 6 * 3600 * 1000 });
+    await swReg.periodicSync.register("wib-alert", { minInterval: ($("alertDaily").value ? 3 : 6) * 3600 * 1000 });
   } catch {
     $("alertStatus").textContent = "Your browser didn't allow background checks. Install the app from Chrome's menu, then try again.";
     return;
@@ -1258,6 +1262,7 @@ $("alertOn").addEventListener("click", async () => {
   const p = state.place, old = await alertConfig();
   await saveAlertConfig({
     enabled: true, kind: state.kind, threshold: Number($("alertThreshold").value),
+    daily: $("alertDaily").value === "" ? null : Number($("alertDaily").value), nudged: old && old.nudged,
     place: { name: p.label || p.name, lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) },
     notified: (old && old.notified) || [], lastCheck: old && old.lastCheck,
   });

@@ -226,3 +226,12 @@ test("comfort advice", () => {
   assert.equal(M.comfortAdvice(14, 10), "Bring a jacket.");
   assert.equal(M.comfortAdvice(20, 5), "Comfortable: no jacket needed.");
 });
+
+test("daily nudge: once a day, after the chosen hour, not late at night", () => {
+  const off = -7 * 3600, at = h => Date.UTC(2026, 10, 11, h + 7) / 1000; // local hour h in Arizona
+  assert.equal(M.shouldNudge({ daily: null }, at(9), off), null);
+  assert.equal(M.shouldNudge({ daily: 8 }, at(7), off), null);
+  assert.equal(M.shouldNudge({ daily: 8 }, at(9), off), "2026-11-11");
+  assert.equal(M.shouldNudge({ daily: 8, nudged: "2026-11-11" }, at(15), off), null);
+  assert.equal(M.shouldNudge({ daily: 8 }, at(22), off), null);
+});

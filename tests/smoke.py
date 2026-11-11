@@ -394,8 +394,10 @@ def main():
           PeriodicSyncManager.prototype.unregister = async t => { tags.delete(t); };
           PeriodicSyncManager.prototype.getTags = async () => [...tags];
         }""")
-        pg.select_option("#alertThreshold", "50"); pg.click("#alertOn"); pg.wait_for_timeout(800)
-        check("On:" in pg.inner_text("#alertStatus"), "alerts turned on: " + pg.inner_text("#alertStatus")[:90])
+        pg.select_option("#alertThreshold", "50"); pg.select_option("#alertDaily", "8"); pg.click("#alertOn"); pg.wait_for_timeout(800)
+        check("On:" in pg.inner_text("#alertStatus") and "daily nudge from 8:00" in pg.inner_text("#alertStatus"), "alerts and daily nudge on: " + pg.inner_text("#alertStatus")[:120])
+        cfgd = pg.evaluate("""async () => { const c = await caches.open('wib-config'); const url = new URL('__alert-config', (await navigator.serviceWorker.ready).scope).href; return (await (await c.match(url)).json()).daily; }""")
+        check(cfgd == 8, f"nudge hour saved for the background worker: {cfgd}")
         tags = pg.evaluate("navigator.serviceWorker.ready.then(r => r.periodicSync.getTags())")
         check("wib-alert" in tags, "background check registered")
         pg.evaluate("""async (api) => { const c = await caches.open('wib-config'); const url = new URL('__alert-config', (await navigator.serviceWorker.ready).scope).href;

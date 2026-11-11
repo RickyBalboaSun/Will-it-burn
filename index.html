@@ -271,12 +271,21 @@
     <details class="card" id="alertCard" open>
       <summary>Alerts <span class="count" id="alertBadge"></span></summary>
       <div class="detail-body">
-        <div class="note" style="margin-top:0" id="alertIntro">Get a notification when a good <span class="kindWord">sunset</span> is forecast here. Your phone checks in the background a few times a day, with no account needed.</div>
+        <div class="note" style="margin-top:0" id="alertIntro">Get a notification when a good <span class="kindWord">sunset</span> is forecast here, or a daily nudge with the score. Your phone checks in the background, so a nudge can arrive a little after the time you pick.</div>
         <label class="field-row">Alert me when the score is
           <select id="alertThreshold" class="select">
             <option value="50">50 or more</option>
             <option value="60" selected>60 or more</option>
             <option value="75">75 or more</option>
+            <option value="101">Never: nudge only</option>
+          </select>
+        </label>
+        <label class="field-row">Daily nudge with the day's score
+          <select id="alertDaily" class="select">
+            <option value="">Off</option>
+            <option value="8">From 8:00</option>
+            <option value="12">From 12:00</option>
+            <option value="15">From 15:00</option>
           </select>
         </label>
         <div class="row">

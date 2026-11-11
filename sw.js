@@ -63,7 +63,8 @@ async function checkAlert({ force = false } = {}) {
   if (!e) return { status: "no-data" };
   const id = `${kind}-${t}`;
   cfg.lastCheck = { at: Date.now(), score: e.score, t };
-  const go = force || M.shouldAlert(cfg, e, now, off, id);
+  const nudge = !force && M.shouldNudge(cfg, now, off);
+  const go = force || nudge || M.shouldAlert(cfg, e, now, off, id);
   if (go) {
     const v = M.viewingTimes(place.lat, place.lon, t, kind);
     const word = kind === "sunset" ? "Sunset" : "Sunrise";
@@ -73,7 +74,8 @@ async function checkAlert({ force = false } = {}) {
       body: `${e.verdict} at ${place.name}. ${word} ${clock(t, off)}, best colour ${clock(v.peakStart, off)}–${clock(v.peakEnd, off)}.`,
       icon: "icons/icon-192.png", badge: "icons/favicon-32.png", tag: "wib-alert", data: { url: self.registration.scope },
     });
-    if (!force) cfg.notified = [...(cfg.notified || []), id].slice(-20);
+    if (!force) cfg.notified = [...(cfg.notified || []), id].slice(-20); // the nudge counts as the alert for this event
+    if (nudge) cfg.nudged = nudge;
   }
   await writeConfig(cfg);
   return { status: go ? "notified" : "checked", score: e.score };

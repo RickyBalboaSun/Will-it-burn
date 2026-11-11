@@ -412,6 +412,13 @@ export function shouldAlert(cfg, e, now, offset, id) {
   return sameDay && localHour >= 8 && e.t - now >= 30 * 60;
 }
 
+/** Daily nudge due? Returns today's local date key ("2026-11-11") once the chosen hour has passed, else null. */
+export function shouldNudge(cfg, now, offset) {
+  if (!cfg || cfg.daily == null) return null;
+  const local = new Date((now + offset) * 1000), key = local.toISOString().slice(0, 10), h = local.getUTCHours();
+  return h >= cfg.daily && h < 22 && cfg.nudged !== key ? key : null;
+}
+
 /** Great-circle distance in km. */
 export function distanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371, dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
