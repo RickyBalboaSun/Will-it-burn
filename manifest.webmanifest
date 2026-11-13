@@ -1,7 +1,8 @@
 {
+  "id": "/",
   "name": "Sunscore: Sunrise & Sunset",
   "short_name": "Sunscore",
-  "description": "Will it burn? A 0–100 score for how colourful the next sunrise or sunset will be.",
+  "description": "A 0–100 score for how colourful the next sunrise or sunset will be, with nearby viewpoints and a map of sky photos.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -24,6 +25,35 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "lang": "en-GB",
+  "categories": [
+    "weather",
+    "photography",
+    "lifestyle"
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/s1.jpg",
+      "sizes": "780x1386",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Tonight's sunset score"
+    },
+    {
+      "src": "screenshots/s2.jpg",
+      "sizes": "780x1386",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Friends and monthly leaderboard"
+    },
+    {
+      "src": "screenshots/s3.jpg",
+      "sizes": "780x1386",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Viewpoints near you"
     }
   ]
 }
