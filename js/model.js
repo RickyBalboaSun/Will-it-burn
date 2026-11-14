@@ -412,6 +412,14 @@ export function shouldAlert(cfg, e, now, offset, id) {
   return sameDay && localHour >= 8 && e.t - now >= 30 * 60;
 }
 
+/** Where anonymous ratings are sent. The app is hosted on GitHub Pages, which can't receive forms, so ratings
+ *  go to the Netlify form at sunscore.netlify.app (kept running for this, with no uploads needed). */
+export const RATINGS_SITE = "https://sunscore.netlify.app/";
+export function ratingsEndpoint(hostname) {
+  const local = /\.netlify\.app$|^(localhost|127\.0\.0\.1)$/.test(hostname || "");
+  return local ? { url: "/", sameOrigin: true } : { url: RATINGS_SITE, sameOrigin: false };
+}
+
 /** Daily nudge due? Returns today's local date key ("2026-11-11") once the chosen hour has passed, else null. */
 export function shouldNudge(cfg, now, offset) {
   if (!cfg || cfg.daily == null) return null;

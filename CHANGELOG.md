@@ -11,6 +11,10 @@
 
 
 
+
+## 4.9.1 (GitHub Pages hosting)
+- Ready for GitHub Pages at sunscore.day: CNAME file, .nojekyll (so .well-known/assetlinks.json is served), no Netlify badge spacing.
+- Ratings still go to the Netlify form, now sent from sunscore.day to sunscore.netlify.app (no-cors). Netlify stays as the ratings inbox and a fallback host; no more Netlify uploads or credits.
 ## 4.9 (Robin's picks, 11 Nov)
 - Friends and scoring: friend links (friends both ways) and follow links (they ask, you accept); a Friends view in Community with friends' photos (straight away, labelled until checked), fire reactions and a monthly leaderboard; Friends and Your score cards in More (nickname, requests, list, chase points, stats, 8 badges); friends alerts in the background (new photo, fire on my photos, monthly result) via a refreshed token and Firestore REST; optional Google sign-in to keep the account. New Firestore rules (users, invites, follows, requests, fires).
 - Daily nudge: optional notification with the day's score, from 8:00, 12:00 or 15:00.

@@ -610,8 +610,14 @@ async function shareRating(x) {
   try {
     const body = new URLSearchParams({ "form-name": "rating", "bot-field": "", entry: JSON.stringify(sharePayload(x)),
       client: clientId(), dev: isDev() ? "1" : "0", release: RELEASE });
-    const res = await fetch("/", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString() });
-    if (!res.ok) return false;
+    const ep = M.ratingsEndpoint(location.hostname);
+    if (ep.sameOrigin) {
+      const res = await fetch(ep.url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString() });
+      if (!res.ok) return false;
+    } else {
+      // another site: the browser hides the reply (no-cors), so a send without a network error counts as sent
+      await fetch(ep.url, { method: "POST", mode: "no-cors", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString() });
+    }
     store.set("wib-log", logAll().map(e => e.id === x.id ? { ...e, sharedAt: Date.now() } : e));
     return true;
   } catch { return false; }
@@ -1519,7 +1525,7 @@ if ("serviceWorker" in navigator) {
 $("modelVersion").textContent = M.MODEL_VERSION;
 setTimeout(shareBacklog, 4000);
 // "What's new": shown once per release to people who used an earlier version
-const RELEASE = "4.9";
+const RELEASE = "4.9.1";
 (() => {
   const seen = store.get("wib-release");
   const returning = store.get("wib-place") || store.get("wib-kind");

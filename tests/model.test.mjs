@@ -235,3 +235,9 @@ test("daily nudge: once a day, after the chosen hour, not late at night", () => 
   assert.equal(M.shouldNudge({ daily: 8, nudged: "2026-11-11" }, at(15), off), null);
   assert.equal(M.shouldNudge({ daily: 8 }, at(22), off), null);
 });
+
+test("ratings go to the Netlify form when hosted elsewhere", () => {
+  assert.deepEqual(M.ratingsEndpoint("sunscore.day"), { url: "https://sunscore.netlify.app/", sameOrigin: false });
+  assert.deepEqual(M.ratingsEndpoint("sunscore.netlify.app"), { url: "/", sameOrigin: true });
+  assert.deepEqual(M.ratingsEndpoint("127.0.0.1"), { url: "/", sameOrigin: true });
+});
